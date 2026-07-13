@@ -1,0 +1,35 @@
+[project]
+name = "nbet"
+version = "0.2.0"
+description = "nLucky - premium Telegram casino bot"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "nFunBot" }]
+
+dependencies = [
+    "aiogram>=3.7.0",
+    "SQLAlchemy>=2.0.36",
+    "aiohttp>=3.10.5",
+    "python-dotenv>=1.0.1",
+    "aiosqlite>=0.20.0",
+    "asyncpg>=0.30.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.black]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.optional-dependencies]
+dev = ["ruff", "black", "pytest", "pytest-asyncio"]
+
+[project.scripts]
+nlucky = "nbet.bot:run"

@@ -1,0 +1,546 @@
+nLucky Telegram Bot - Master Specification (Part 1)
+
+Goal
+
+Create a premium Telegram casino/economy bot named nLucky using Aiogram
+3.x, PostgreSQL and Redis. The bot must work in groups and private
+chats. Every interaction uses inline keyboards and message editing
+instead of sending many new messages.
+
+Core Features
+
+-   Virtual currency only (no real money).
+-   Economy shared across all games.
+-   Beautiful dark-purple UI matching nProject branding.
+-   Fast callback-based UX.
+-   Modular architecture.
+-   Admin panel.
+-   Anti-spam / anti-cheat.
+-   Statistics, leaderboards, achievements.
+
+Tech Stack
+
+-   Python 3.13
+-   Aiogram 3.x
+-   PostgreSQL
+-   Redis
+-   SQLAlchemy
+-   Alembic
+
+Modules
+
+-   auth
+-   economy
+-   profile
+-   inventory
+-   shop
+-   achievements
+-   leaderboard
+-   daily
+-   missions
+-   games/
+    -   slots
+    -   mines
+    -   crash
+    -   blackjack
+    -   roulette
+    -   dice
+    -   coinflip
+    -   keno
+    -   towers
+    -   wheel
+-   pvp/
+    -   duel
+    -   jackpot
+    -   race
+    -   battle_royale
+-   admin
+-   logs
+-   scheduler
+
+Database (minimum)
+
+Users: id, tg_id, username, balance, bank, xp, level, wins, loses,
+games_played, biggest_win, biggest_loss, streak, created_at
+
+Transactions: id,user_id,type,amount,balance_before,balance_after,time
+
+Achievements Inventory Items PromoCodes DailyRewards Missions
+GameHistory
+
+Economy
+
+Commands: - /start - /profile - /games - /daily - /leaderboard - /shop -
+/inventory - /help
+
+Games
+
+Slots Mines Crash Blackjack Roulette Coin Flip Dice Wheel Keno Towers
+
+Each game must define: - entry flow - validation - bet limits - payout
+table - RNG - animation - win - lose - database updates - statistics -
+achievements - logs
+
+Admin Panel
+
+/admin
+
+Permissions: - Owner - Admin - Moderator
+
+Functions: - add/remove balance - reset profile - ban/unban - mute
+games - create promocodes - edit economy - broadcast - view logs - edit
+missions - edit daily rewards - edit shop - reload config - maintenance
+mode
+
+UI Style
+
+Dark background. Purple neon. Rounded buttons. One edited message
+whenever possible.
+
+Development Rule
+
+Never hardcode values. Everything configurable through config files.
+
+The remaining specification (menus, every game algorithm, callback map,
+FSM, Redis keys, anti-cheat, scheduler, admin UX) should continue in
+subsequent documents.
+
+
+
+Бро, если делать, то не просто `/dice`, а мини-казино внутри Telegram. Главное — чтобы **было весело даже без реальных денег**. Тогда люди будут заходить каждый день.
+
+### Название
+
+* nBet
+* nLuck
+* nCasino
+* nPlay
+* nRoll
+* nLucky
+* nJack
+* nSpin
+* nVault
+* nRisk
+
+---
+
+## Валюта
+
+Например:
+
+* 💰 Coins
+* 🪙 Chips
+* 💎 Gems (премиум)
+* 🎟 Tickets
+
+---
+
+# Игры
+
+### 🎰 Slots
+
+Крутилка.
+
+```
+🍒 🍋 🍒
+```
+
+Inline:
+
+> 🎰 Spin
+
+---
+
+### 🎲 Dice
+
+Угадать число.
+
+```
+Roll
+
+3
+```
+
+Кнопки
+
+```
+1
+2
+3
+4
+5
+6
+```
+
+---
+
+### 🎯 Crash
+
+```
+x1.00
+
+x1.12
+
+x1.54
+
+x2.31
+
+💥 CRASH
+```
+
+Игрок сам жмет **Cash Out**.
+
+---
+
+### 💣 Mines
+
+Поле
+
+⬜⬜⬜⬜⬜
+
+Жмешь клетки.
+
+Если 💣 — проиграл.
+
+---
+
+### 🃏 Blackjack
+
+Игрок против бота.
+
+```
+K ♠
+7 ♥
+
+17
+```
+
+Кнопки
+
+```
+Hit
+Stand
+Double
+```
+
+---
+
+### ♥ Higher Lower
+
+```
+Current card
+
+8♥
+
+Next?
+```
+
+⬆ Higher
+
+⬇ Lower
+
+---
+
+### ⚪ Roulette
+
+Красное
+
+Черное
+
+Четное
+
+Нечетное
+
+1-36
+
+---
+
+### 🎡 Wheel
+
+Колесо фортуны.
+
+```
+x0
+x2
+x5
+x10
+Jackpot
+```
+
+---
+
+### 💎 Towers
+
+Башня.
+
+Каждый этаж.
+
+2 клетки.
+
+Одна безопасная.
+
+---
+
+### 🪨 Rock Paper Scissors
+
+Можно против бота.
+
+И против игроков.
+
+---
+
+### ⚔ Duel
+
+```
+Игрок А
+
+vs
+
+Игрок Б
+```
+
+Оба ставят 500.
+
+Победитель получает банк.
+
+---
+
+### 🎁 Lucky Box
+
+```
+Открыть сундук
+```
+
+Можно получить
+
+* Coins
+* XP
+* Jackpot
+
+---
+
+### 🎯 Coin Flip
+
+Орел
+
+Решка
+
+50/50
+
+---
+
+### 🎲 HiLo Dice
+
+```
+Выпадет больше 3?
+```
+
+Да
+
+Нет
+
+---
+
+### 💎 Keno
+
+Выбираешь числа.
+
+Потом бот открывает.
+
+---
+
+### 🧨 Bomb
+
+10 коробок.
+
+1 бомба.
+
+Чем дальше — тем выше множитель.
+
+---
+
+## PvP
+
+Очень важная часть.
+
+```
+/duel @user 1000
+```
+
+```
+Ван вызывает Камрона.
+
+Ставка
+
+1000 Coins
+```
+
+Кнопки
+
+✅ Accept
+
+❌ Decline
+
+---
+
+### Race
+
+Несколько игроков.
+
+```
+🐢
+
+🐇
+
+🐌
+
+🐎
+```
+
+Все ставят.
+
+Кто победил — получает всё.
+
+---
+
+### Battle Royale
+
+До 20 игроков.
+
+Все ставят.
+
+Каждые несколько секунд кто-то выбывает.
+
+Последний забирает банк.
+
+---
+
+### Jackpot
+
+Все кидают деньги.
+
+Колесо.
+
+Шанс зависит от вклада.
+
+---
+
+## Ежедневки
+
+```
+/daily
+
++500
+```
+
+```
+/weekly
+```
+
+```
+/gift
+```
+
+---
+
+## Прокачка
+
+XP
+
+Level
+
+Титулы
+
+```
+Gambler
+
+High Roller
+
+Lucky
+
+King
+
+God
+```
+
+---
+
+## Профиль
+
+```
+👤 Van
+
+💰 123 000
+
+🏆 Wins 421
+
+❌ Lose 219
+
+📈 Winrate 65%
+
+⭐ Level 17
+
+🔥 Streak 12
+
+💎 Net Worth
+```
+
+---
+
+## Топы
+
+* Самый богатый
+* Самый удачливый
+* Самый невезучий
+* Самый большой выигрыш
+* Самый большой проигрыш
+* Самый высокий стрик
+* Самый активный
+
+---
+
+## Ивенты
+
+Каждый час:
+
+> 💰 Rain
+
+Первые 30 человек нажали кнопку — получили монеты.
+
+---
+
+## Достижения
+
+* Первая победа
+* 100 игр
+* 1000 игр
+* Jackpot
+* Millionaire
+* Lucky 10 подряд
+* Unlucky 10 подряд
+
+---
+
+## Экономика
+
+* `/work`
+* `/crime`
+* `/beg`
+* `/rob`
+* `/invest`
+* `/bank`
+* `/deposit`
+* `/withdraw`
+
+---
+
+## Что сделает бота залипательным
+
+* ⚡ Все игры работают через **inline-кнопки**, без постоянного ввода команд.
+* ⚡ Одно сообщение редактируется, а не создаются десятки новых.
+* ⚡ Поддержка как **одиночных игр**, так и **PvP** и **массовых режимов** (Jackpot, Battle Royale, Race).
+* ⚡ Общий профиль, валюта, уровни и достижения для всех игр.
+* ⚡ Случайные ежедневные события (Rain, Happy Hour с повышенными выплатами, двойной XP).
+* ⚡ Красивые анимации через последовательное редактирование сообщения (`🎲`, `🎰`, `💥`) создают ощущение живого казино.
+
+Если делать такой проект на **Aiogram 3.x**, с нормальной архитектурой (FSM, Redis для игровых сессий, PostgreSQL для экономики), получится полноценная игровая экосистема для Telegram-групп, а не просто набор команд.
