@@ -17,7 +17,7 @@ export function shuffle(arr, rnd = Math.random) {
 export class GameError extends Error {}
 
 /**
- * Серверная логика одной партии (несколько раундов до 101).
+ * Серверная логика одной партии (несколько раундов до 108).
  * players: [{ id, name }]
  */
 export class Game {
@@ -170,7 +170,8 @@ export class Game {
       else delta = p.hand.reduce((s, c) => s + cardPoints(c), 0);
       p.score += delta;
       let note = null;
-      if (p.score === this.rules.targetScore && this.rules.exactTargetResets) { p.score = 0; note = 'reset'; }
+      if (p.score === this.rules.targetScore) { p.score = 0; note = 'reset'; }
+      else if (p.score === this.rules.halfScore) { p.score = Math.floor(p.score / 2); note = 'half'; }
       else if (p.score > this.rules.targetScore) { p.out = true; note = 'out'; }
       results.push({ id: p.id, name: p.name, delta, score: p.score, hand: p.hand.slice(), note });
     }

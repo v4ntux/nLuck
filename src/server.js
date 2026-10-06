@@ -73,7 +73,8 @@ let botInfo = null;
 server.listen(PORT, async () => {
   console.log(`Сервер запущен: http://localhost:${PORT}`);
   if (BOT_TOKEN) {
-    try { botInfo = await startBot(BOT_TOKEN, process.env.WEBAPP_URL); }
+    const url = process.env.WEBAPP_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+    try { botInfo = await startBot(BOT_TOKEN, url); }
     catch (e) { console.error('Не удалось запустить бота:', e.message); }
   } else {
     console.log('BOT_TOKEN не задан — бот не запущен, вход только как гость');

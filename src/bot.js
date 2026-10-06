@@ -5,7 +5,7 @@ export async function startBot(token, webAppUrl) {
   const bot = new Bot(token);
 
   const keyboard = (code) => new InlineKeyboard().webApp(
-    code ? '🃏 Войти за стол' : '🃏 Играть в 101',
+    code ? '🃏 Войти за стол' : '🃏 Играть в 108',
     code ? `${webAppUrl}?room=${encodeURIComponent(code)}` : webAppUrl,
   );
 
@@ -14,12 +14,12 @@ export async function startBot(token, webAppUrl) {
     const code = /^[A-Z0-9]{5}$/i.test(payload) ? payload.toUpperCase() : null;
     const text = code
       ? `Тебя позвали за стол <b>${code}</b>! Жми кнопку, чтобы сесть играть.`
-      : '<b>101</b> — карточная игра на 36 карт.\n\n' +
+      : '<b>108</b> — карточная игра на 36 карт.\n\n' +
         '• 6 — следующий берёт 1 карту\n' +
         '• 7 — следующий берёт 2 карты\n' +
         '• Дама — на любую карту, заказывает масть\n' +
         '• K♠ ±80, Q♠ ±40, остальные дамы ±20\n\n' +
-        'Перевалил за 101 — вылетел. Жми кнопку!';
+        'Очки копятся по раундам. Больше 108 — вылет, ровно 107 — половина, ровно 108 — ноль. Жми кнопку!';
     await ctx.reply(text, { parse_mode: 'HTML', reply_markup: keyboard(code) });
   });
 
@@ -31,7 +31,7 @@ export async function startBot(token, webAppUrl) {
   bot.catch(err => console.error('bot error', err.error));
 
   await bot.api.setMyCommands([
-    { command: 'start', description: 'Играть в 101' },
+    { command: 'start', description: 'Играть в 108' },
     { command: 'rules', description: 'Правила' },
   ]);
   await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Играть', web_app: { url: webAppUrl } } });

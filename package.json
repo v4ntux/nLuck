@@ -1,7 +1,7 @@
 {
-  "name": "karta-101",
+  "name": "karta-108",
   "version": "1.0.0",
-  "description": "Карточная игра 101 — Telegram Web App с матчмейкингом и игрой с друзьями",
+  "description": "Карточная игра 108 — Telegram Web App с матчмейкингом и игрой с друзьями",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

@@ -146,7 +146,7 @@ export function cardBack() {
     <rect x="18" y="18" width="164" height="244" rx="6" fill="none" stroke="#f1d38a" stroke-width="2"/>
     <g transform="translate(100 140)">
       <ellipse rx="44" ry="30" fill="#7a1220" stroke="#f1d38a" stroke-width="2.5"/>
-      <text y="11" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="32" fill="#f1d38a">101</text>
+      <text y="11" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="32" fill="#f1d38a">108</text>
     </g>
   </svg>`;
 }

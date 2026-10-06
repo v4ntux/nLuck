@@ -225,7 +225,7 @@ body::before { /* текстура сукна */
 .res-row .d.plus { color: #ff8a8d; } .res-row .d.minus { color: #6ee59a; }
 .res-row .tot { font-weight: 800; color: var(--gold); min-width: 40px; text-align: right; }
 .res-row .note { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: #c8102e; }
-.res-row .note.reset { background: #1f6d3a; }
+.res-row .note.reset, .res-row .note.half { background: #1f6d3a; }
 .res-cards { display: flex; gap: 2px; margin-top: 4px; }
 .res-cards .card { --card-w: 26px; }
 .score-bar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); margin-top: 4px; overflow: hidden; }

@@ -190,10 +190,10 @@ function shareRoom() {
   const code = S.room?.code;
   if (!code) return;
   const link = inviteLink(code);
-  const text = `Го в 101! Код стола: ${code}`;
+  const text = `Го в 108! Код стола: ${code}`;
   haptic();
   if (tg && inTg) return tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
-  if (navigator.share) return navigator.share({ title: '101', text, url: link }).catch(() => {});
+  if (navigator.share) return navigator.share({ title: '108', text, url: link }).catch(() => {});
   copy(link);
 }
 function copy(text) {
@@ -521,7 +521,7 @@ function bubble(playerId, text) {
 })();
 
 // ---------- итоги ----------
-function resultRow(r, { win = false, showHand = true, target = 101 } = {}) {
+function resultRow(r, { win = false, showHand = true, target = 108 } = {}) {
   const row = document.createElement('div');
   row.className = 'res-row' + (win ? ' win' : '');
   const seat = seatOf(r.id);
@@ -540,7 +540,7 @@ function resultRow(r, { win = false, showHand = true, target = 101 } = {}) {
   bar.innerHTML = `<i style="width:${Math.min(100, Math.max(0, (r.score / target) * 100))}%"></i>`;
   mid.appendChild(bar);
   row.appendChild(mid);
-  if (r.note) row.insertAdjacentHTML('beforeend', `<span class="note ${r.note}">${r.note === 'out' ? 'вылет' : 'обнуление!'}</span>`);
+  if (r.note) row.insertAdjacentHTML('beforeend', `<span class="note ${r.note}">${r.note === 'out' ? 'вылет' : r.note === 'half' ? 'пополам!' : 'обнуление!'}</span>`);
   if (r.delta !== undefined) row.insertAdjacentHTML('beforeend', `<span class="d ${r.delta > 0 ? 'plus' : r.delta < 0 ? 'minus' : ''}">${r.delta > 0 ? '+' : ''}${r.delta}</span>`);
   row.insertAdjacentHTML('beforeend', `<span class="tot">${r.score}</span>`);
   return row;
@@ -593,7 +593,7 @@ function renderScores() {
   if (!g) return;
   [...g.players].sort((a, b) => a.out - b.out || a.score - b.score)
     .forEach(p => body.appendChild(resultRow({ ...p, note: p.out ? 'out' : null }, { showHand: false, target: g.target })));
-  body.insertAdjacentHTML('beforeend', `<p class="hint center">Больше ${g.target} — вылет · ровно ${g.target} — обнуление</p>`);
+  body.insertAdjacentHTML('beforeend', `<p class="hint center">Больше ${g.target} — вылет · ровно ${g.target - 1} — пополам · ровно ${g.target} — ноль</p>`);
 }
 
 window.addEventListener('resize', () => S.game && renderHand());

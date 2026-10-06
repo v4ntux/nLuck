@@ -68,9 +68,9 @@ test('конец раунда: K♠ последней картой даёт −
   assert.equal(g.phase, 'roundOver');
 });
 
-test('ровно 101 обнуляет, больше — вылет', () => {
+test('ровно 108 обнуляет, больше — вылет', () => {
   const g = setup();
-  g.players[1].score = 92; g.players[2].score = 95;
+  g.players[1].score = 99; g.players[2].score = 102;
   g.players[0].hand = [c('9', 'hearts')];
   g.players[1].hand = [c('9', 'clubs')];
   g.players[2].hand = [c('8', 'clubs')];
@@ -103,4 +103,15 @@ test('боты доигрывают партию до конца', () => {
     const total = g.players.reduce((s, p) => s + p.hand.length, 0) + g.deck.length + g.discard.length;
     assert.equal(total, 36);
   }
+});
+
+test('ровно 107 — пополам, минус допустим', () => {
+  const g = setup();
+  g.players[0].score = 10; g.players[1].score = 98;
+  g.players[0].hand = [c('Q', 'hearts')];
+  g.players[1].hand = [c('9', 'clubs')];
+  g.players[2].hand = [c('8', 'clubs')];
+  g.play('a', 'Q-hearts');
+  assert.equal(g.players[0].score, -10);
+  assert.equal(g.players[1].score, 53);
 });
