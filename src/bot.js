@@ -37,7 +37,12 @@ export async function startBot(token, webAppUrl) {
   await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Играть', web_app: { url: webAppUrl } } });
 
   const me = await bot.api.getMe();
-  bot.start({ drop_pending_updates: true });
+  // При перезапуске старый и новый сервер на миг тянут обновления одновременно (409) — не падаем, а пробуем снова
+  const run = () => bot.start({ drop_pending_updates: true }).catch(e => {
+    console.error('Опрос Telegram прерван:', e.description || e.message, '— повтор через 5 с');
+    setTimeout(run, 5000);
+  });
+  run();
   console.log(`Бот @${me.username} запущен`);
   return me;
 }
