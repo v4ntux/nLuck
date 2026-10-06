@@ -71,6 +71,8 @@ export class Game {
     this.hasDrawn = false;
     this.drawnCardId = null;
     this.cover = null;
+    this.pending = null;
+    this.finishers = [];
     this.turnStartedAt = Date.now();
     this.roundResult = null;
     this.phase = 'playing';
@@ -91,6 +93,8 @@ export class Game {
   canDraw() { return this.deck.length > 0 || this.discard.length > 1; }
 
   canPlay(card) {
+    // На 6/7 можно ответить только такой же картой — перевести штраф дальше
+    if (this.pending) return card.rank === this.pending.rank;
     // После восьмёрки её надо покрыть: восьмёркой или картой той же масти
     if (this.cover) return card.rank === '8' || card.suit === this.cover;
     if (this.rules.queenIsWild && card.rank === 'Q') return true;
@@ -121,6 +125,20 @@ export class Game {
     }
     this.emit({ type: 'play', playerId, card, suit: this.suit });
     if (p.hand.length === 1) this.emit({ type: 'lastCard', playerId });
+    if (p.hand.length === 0) this.finishers.push({ player: p, card });
+
+    const drawN = this.rules.drawEffects[card.id] ?? this.rules.drawEffects[card.rank] ?? 0;
+    const transferable = this.rules.transferRanks.includes(card.rank);
+
+    // Перевод: ответил такой же 6/7 — штраф растёт и уходит следующему
+    if (this.pending) {
+      this.pending.count += drawN;
+      this.pending.card = card;
+      const next = this.nextIndex(this.turn);
+      this.emit({ type: 'transfer', playerId, to: this.players[next].id, count: this.pending.count });
+      this.advance(next);
+      return;
+    }
 
     // Восьмёрка: тот же игрок обязан покрыть
     if (card.rank === '8' && this.rules.eightMustCover) {
@@ -131,9 +149,16 @@ export class Game {
     }
     this.cover = null;
 
-    // Эффект на следующего игрока
+    // 6/7 — штраф «висит»: следующий может перевести его такой же картой или взять
     let next = this.nextIndex(this.turn);
-    const drawN = this.rules.drawEffects[card.id] ?? this.rules.drawEffects[card.rank] ?? 0;
+    if (drawN > 0 && transferable) {
+      this.pending = { rank: card.rank, count: drawN, card };
+      this.emit({ type: 'pending', playerId: this.players[next].id, count: drawN, rank: card.rank });
+      this.advance(next);
+      return;
+    }
+
+    // Остальные штрафы (K♠) — сразу
     if (drawN > 0) {
       const victim = this.players[next];
       for (let i = 0; i < drawN; i++) { const c = this.drawCard(); if (c) victim.hand.push(c); }
@@ -152,6 +177,7 @@ export class Game {
 
   draw(playerId) {
     this.assertTurn(playerId);
+    if (this.pending) return this.takePenalty();
     if (this.cover) {
       // Покрыть восьмёрку нечем — тянем по одной, пока не найдём
       const c = this.drawCard();
@@ -170,7 +196,22 @@ export class Game {
     return c;
   }
 
+  /** Перевести нечем (или не хочет) — берёт все накопленные карты и пропускает ход */
+  takePenalty() {
+    const victim = this.current, { count, card } = this.pending;
+    for (let i = 0; i < count; i++) { const c = this.drawCard(); if (c) victim.hand.push(c); }
+    this.pending = null;
+    this.emit({ type: 'penalty', playerId: victim.id, count, card });
+    // Кто-то вышел, пока штраф висел, и ему его не вернули — раунд за ним
+    const winner = this.finishers.find(f => f.player.hand.length === 0);
+    if (winner) return this.endRound(winner.player, winner.card);
+    this.finishers = [];
+    this.emit({ type: 'skip', playerId: victim.id });
+    this.advance(this.nextIndex(this.turn));
+  }
+
   canPass() {
+    if (this.pending) return false;
     if (this.cover) return !this.canDraw() && !this.current.hand.some(c => this.canPlay(c));
     return this.hasDrawn;
   }
@@ -250,6 +291,7 @@ export class Game {
       turn: this.current?.id,
       hasDrawn: this.current?.id === forId ? this.hasDrawn : false,
       cover: this.cover,
+      pending: this.pending ? { rank: this.pending.rank, count: this.pending.count } : null,
       canPass: this.phase === 'playing' && this.current?.id === forId ? this.canPass() : false,
       drawnCardId: this.current?.id === forId ? this.drawnCardId : null,
       dealer: this.players[this.dealer]?.id,

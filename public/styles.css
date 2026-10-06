@@ -505,3 +505,4 @@ body.has-tabs .tabbar { transform: translate(-50%, 0); }
 .mode-card .stat { grid-column: 2; }
 .online-line { margin-top: 16px; }
 .online-line::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3f7a3a; margin-right: 6px; border: 1px solid var(--ink); }
+.hand.two-rows { height: calc(var(--card-w) * 1.4 + 40px + var(--card-w) * .62); }

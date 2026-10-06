@@ -6,6 +6,10 @@ export function chooseAction(game, playerId) {
   let playable = me.hand.filter(c => game.canPlay(c));
   if (!game.cover && game.hasDrawn && game.drawnCardId) playable = playable.filter(c => c.id === game.drawnCardId);
 
+  if (game.pending) {
+    // перевести, если есть чем, иначе взять штраф
+    return playable.length ? { type: 'play', cardId: playable[0].id } : { type: 'draw' };
+  }
   if (playable.length === 0) {
     if (game.cover) return game.canDraw() ? { type: 'draw' } : { type: 'pass' };
     return game.hasDrawn ? { type: 'pass' } : { type: 'draw' };

@@ -29,8 +29,13 @@ test('6 — следующий берёт 1 и пропускает', () => {
   g.players[0].hand = [c('6', 'hearts'), c('9', 'clubs')];
   const before = g.players[1].hand.length;
   g.play('a', '6-hearts');
-  assert.equal(g.players[1].hand.length, before + 1);
+  assert.equal(g.current.id, 'b');            // штраф висит — b может перевести
+  g.players[1].hand = g.players[1].hand.filter(c => c.rank !== '6');
+  const b0 = g.players[1].hand.length;
+  g.draw('b');                                // перевести нечем — берёт
+  assert.equal(g.players[1].hand.length, b0 + 1);
   assert.equal(g.current.id, 'c');
+  void before;
 });
 
 test('7 — следующий берёт 2 и пропускает', () => {
@@ -38,8 +43,12 @@ test('7 — следующий берёт 2 и пропускает', () => {
   g.players[0].hand = [c('7', 'hearts'), c('9', 'clubs')];
   const before = g.players[1].hand.length;
   g.play('a', '7-hearts');
-  assert.equal(g.players[1].hand.length, before + 2);
+  g.players[1].hand = g.players[1].hand.filter(c => c.rank !== '7');
+  const b0 = g.players[1].hand.length;
+  g.draw('b');
+  assert.equal(g.players[1].hand.length, b0 + 2);
   assert.equal(g.current.id, 'c');
+  void before;
 });
 
 test('нельзя положить неподходящую карту', () => {
@@ -186,4 +195,44 @@ test('любой туз — пропуск без добора, вдвоём х�
   g.play('a', 'A-hearts');
   assert.equal(g.players[1].hand.length, before);
   assert.equal(g.current.id, 'a');
+});
+
+test('перевод 6: следующий кладёт 6 — брать 2 уже дальше', () => {
+  const g = setup();
+  g.players[0].hand = [c('6', 'hearts'), c('9', 'clubs')];
+  g.players[1].hand = [c('6', 'spades'), c('10', 'clubs')];
+  g.players[2].hand = [c('J', 'diamonds')];
+  g.play('a', '6-hearts');
+  assert.throws(() => g.play('b', '10-clubs'));   // только такой же картой
+  g.play('b', '6-spades');
+  assert.equal(g.current.id, 'c');
+  assert.equal(g.pending.count, 2);
+  g.draw('c');
+  assert.equal(g.players[2].hand.length, 3);
+  assert.equal(g.current.id, 'a');
+});
+
+test('вдвоём: вышел шестёркой, соперник перевёл — берёшь 2 и возвращаешься в игру', () => {
+  const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+  g.turn = 0; g.discard = [c('9', 'hearts')]; g.suit = 'hearts';
+  g.players[0].hand = [c('6', 'hearts')];
+  g.players[1].hand = [c('6', 'clubs'), c('K', 'hearts')];
+  g.play('a', '6-hearts');
+  assert.equal(g.phase, 'playing');               // раунд ещё не закончен
+  g.play('b', '6-clubs');
+  assert.equal(g.current.id, 'a');
+  g.draw('a');                                    // перевести нечем
+  assert.equal(g.players[0].hand.length, 2);
+  assert.equal(g.phase, 'playing');
+  assert.equal(g.current.id, 'b');
+});
+
+test('вышел шестёркой, следующий взял — раунд за вышедшим', () => {
+  const g = setup();
+  g.players[0].hand = [c('6', 'hearts')];
+  g.players[1].hand = [c('9', 'clubs')];
+  g.play('a', '6-hearts');
+  g.draw('b');
+  assert.equal(g.phase, 'roundOver');
+  assert.equal(g.roundResult.winnerId, 'a');
 });

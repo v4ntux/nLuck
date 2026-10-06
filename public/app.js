@@ -101,7 +101,7 @@ connect();
 function onMessage(m) {
   switch (m.type) {
     case 'welcome': S.me = m.me; renderMe(); break;
-    case 'error': toast(m.message); haptic('error'); sfx.error(); shakeCard(S.lastTried); S.lastTried = null; break;
+    case 'error': toast(m.message); haptic('error'); sfx.error(); if (S.flying && !S.flying.top) cancelFlying(); else shakeCard(S.lastTried); S.lastTried = null; break;
     case 'queue': onQueue(m); break;
     case 'stats': onStats(m); break;
     case 'chat': onChat(m); break;
@@ -435,7 +435,12 @@ $('#over-again').addEventListener('click', () => { closeModal('over'); send({ ty
 $('#over-home').addEventListener('click', () => { closeModal('over'); leaveRoom(); });
 $$('#modal-suit [data-suit]').forEach(b => b.addEventListener('click', () => {
   closeModal('suit');
-  if (S.pendingQueen) { haptic('medium'); send({ type: 'play', cardId: S.pendingQueen, suit: b.dataset.suit }); }
+  if (S.pendingQueen) {
+    haptic('medium');
+    const c = S.game?.hand.find(x => x.id === S.pendingQueen);
+    if (c) startThrow(c);
+    send({ type: 'play', cardId: S.pendingQueen, suit: b.dataset.suit });
+  }
   S.pendingQueen = null;
 }));
 
@@ -448,9 +453,66 @@ function drawCard() {
 function playCard(card) {
   if (!myTurn()) return;
   S.lastTried = card.id;
-  if (card.rank === 'Q' && !S.game.cover) { S.pendingQueen = card.id; return openModal('suit'); }
+  if (card.rank === 'Q' && !S.game.cover && !S.game.pending) { S.pendingQueen = card.id; return openModal('suit'); }
   haptic('medium');
+  startThrow(card);
   send({ type: 'play', cardId: card.id });
+}
+
+// ---------- мгновенный бросок: карта летит из руки сразу, не дожидаясь сервера ----------
+S.thrown = new Set();
+function startThrow(card) {
+  const el = S.handEls.get(card.id);
+  if (!el || settings.lite || S.flying) return;
+  const from = el.getBoundingClientRect(), to = rectOf($('#pile'));
+  const flyer = cardEl(card);
+  flyer.classList.add('flyer', 'airborne');
+  Object.assign(flyer.style, { width: from.width + 'px', left: from.left + 'px', top: from.top + 'px' });
+  flyer.style.setProperty('--card-w', from.width + 'px');
+  document.body.appendChild(flyer);
+  el.style.visibility = 'hidden';
+  const endRot = (Math.random() - 0.5) * 22;
+  const dx = to.left - from.left, dy = to.top - from.top, sc = to.width / from.width;
+  const arc = Math.min(120, 40 + Math.abs(dy) * 0.3);
+  const f = { id: card.id, flyer, el, endRot, done: false, top: null };
+  S.flying = f;
+  S.thrown.add(card.id);
+  sfx.flick();
+  f.anim = flyer.animate([
+    { transform: 'translate(0,0) rotate(0) scale(1)' },
+    { transform: `translate(${dx * 0.45}px, ${dy * 0.5 - arc}px) rotate(${endRot / 2 - 200}deg) scale(${(1 + sc) / 2 * 1.15})`, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(${endRot - 360}deg) scale(${sc})` },
+  ], { duration: 520, easing: 'cubic-bezier(.12,.75,.25,1)', fill: 'forwards' });
+  f.anim.onfinish = () => { f.done = true; if (f.top) landFlying(f); };
+}
+function adoptFlying(top) {
+  const f = S.flying;
+  top.style.setProperty('--r', `${f.endRot}deg`);
+  top.style.setProperty('--x', '0px');
+  if (f.done) landFlying(f, top);
+  else { top.style.visibility = 'hidden'; f.top = top; }
+}
+function landFlying(f, top = f.top) {
+  f.flyer.remove();
+  top.style.visibility = '';
+  top.classList.remove('thud'); void top.offsetWidth; top.classList.add('thud');
+  const pr = rectOf($('#pile'));
+  const puff = document.createElement('div');
+  puff.className = 'puff';
+  Object.assign(puff.style, { left: pr.left + pr.width / 2 + 'px', top: pr.top + pr.height / 2 + 'px' });
+  document.body.appendChild(puff);
+  setTimeout(() => puff.remove(), 500);
+  sfx.land();
+  if (S.flying === f) S.flying = null;
+}
+function cancelFlying() {
+  const f = S.flying;
+  if (!f || f.top) return;
+  S.flying = null;
+  S.thrown.delete(f.id);
+  f.anim.onfinish = null;
+  f.anim.reverse();
+  f.anim.onfinish = () => { f.flyer.remove(); f.el.style.visibility = ''; shakeCard(f.id); };
 }
 function shakeCard(id) {
   const el = id && S.handEls.get(id);
@@ -501,6 +563,8 @@ function onGame(g) {
 }
 
 function resetTable() {
+  if (S.flying) { S.flying.flyer.remove(); S.flying = null; }
+  S.thrown.clear();
   for (const el of S.handEls.values()) el.remove();
   S.handEls.clear();
   $('#pile').innerHTML = '';
@@ -544,6 +608,7 @@ function renderTable(g, deal) {
     el.style.setProperty('--r', `${(Math.random() - 0.5) * 22}deg`);
     el.style.setProperty('--x', `${(Math.random() - 0.5) * 12}px`);
     $('#pile').appendChild(el);
+    if (S.flying && S.flying.id === g.top.id) adoptFlying(el);
     while ($('#pile').children.length > 4) $('#pile').firstElementChild.remove();
   }
 
@@ -567,7 +632,8 @@ function renderTable(g, deal) {
   info.insertAdjacentHTML('beforeend', `<span class="nm">${esc(S.me?.name)}</span><span class="sc${myBump ? ' pop' : ''}">${me ? me.score : 0}</span>`);
   S.scores = Object.fromEntries(ps.map(p => [p.id, p.score]));
 
-  $('#btn-draw').disabled = !mine || (!g.cover && g.hasDrawn);
+  $('#btn-draw').disabled = !mine || (!g.cover && !g.pending && g.hasDrawn);
+  $('#btn-draw').textContent = mine && g.pending ? `Взять +${g.pending.count}` : 'Взять';
   $('#btn-pass').disabled = !mine || !g.canPass;
 
   renderHand(g, deal);
@@ -603,16 +669,29 @@ function renderHand(g, deal = false) {
   const n = hand.length;
   const W = box.clientWidth || 360;
   const cw = parseFloat(getComputedStyle(box).getPropertyValue('--card-w')) || 84;
-  const step = n > 1 ? Math.min(cw * 0.62, (W - cw - 8) / (n - 1)) : 0;
-  const angle = Math.min(5, 30 / Math.max(n, 1));
+  // Много карт — веер плотнее, с 12 карт — два ряда. Всё всегда влезает в экран
+  const rows = n > 11 ? 2 : 1;
+  const perRow = Math.ceil(n / rows);
+  const rowGap = cw * 0.62;
+  box.classList.toggle('two-rows', rows === 2);
+  const slot = i => {
+    const row = rows === 2 && i >= perRow ? 1 : 0;
+    const j = row ? i - perRow : i;
+    const k = row ? n - perRow : Math.min(n, perRow);
+    const spread = Math.min(24, k * 4);                       // общий угол веера
+    const margin = cw * 1.4 * Math.sin((spread / 2) * Math.PI / 180) * 0.6 + 6;
+    const step = k > 1 ? Math.min(cw * 0.62, (W - cw - margin * 2) / (k - 1)) : 0;
+    const half = (k - 1) / 2, off = j - half, norm = half ? off / half : 0;
+    const y = norm * norm * 12 - (rows === 2 && row === 0 ? rowGap : 0);
+    return `translate(calc(-50% + ${off * step}px), ${y}px) rotate(${norm * spread / 2}deg)`;
+  };
   const hb = box.getBoundingClientRect();
   const db = $('#deck').getBoundingClientRect();
   // откуда вылетают новые карты — из колоды
   const fromDeck = `translate(calc(-50% + ${db.left + db.width / 2 - (hb.left + hb.width / 2)}px), ${db.top + db.height / 2 - (hb.bottom - 14 - cw * 0.7)}px) rotate(-8deg) scale(${db.width / cw})`;
   let newIdx = 0;
   hand.forEach((c, i) => {
-    const off = i - (n - 1) / 2;
-    const target = `translate(calc(-50% + ${off * step}px), ${off * off * 2}px) rotate(${off * angle}deg)`;
+    const target = slot(i);
     let el = S.handEls.get(c.id);
     if (!el) {
       el = cardEl(c, { cls: 'in-hand' });
@@ -732,7 +811,8 @@ function animateEvents(events, before, firstLoad) {
       if (isMe && ev.card.rank === '8' && S.prevPlay?.by === S.me?.id && S.prevPlay.rank === '8') unlock('eight_chain');
       S.prevPlay = { by: ev.playerId, rank: ev.card.rank, id: ev.card.id };
       const from = isMe ? before.hand.get(ev.card.id) : centerRect(before.opp[ev.playerId], 40);
-      throwCard(ev.card, from, { delay: t, flip: !isMe });
+      if (isMe && S.thrown.has(ev.card.id)) S.thrown.delete(ev.card.id); // уже летит
+      else throwCard(ev.card, from, { delay: t, flip: !isMe });
       if (ev.card.rank === 'Q' && ev.suit) bubble(ev.playerId, SUIT_SYMBOL[ev.suit], t);
       setTimeout(() => haptic(isMe ? 'medium' : 'light'), t + 380);
       t += 260;
@@ -746,6 +826,13 @@ function animateEvents(events, before, firstLoad) {
       if (ev.type === 'penalty') bubble(ev.playerId, `+${ev.count}`, t);
       if (ev.type === 'penalty' && ev.card?.id === 'K-spades' && S.prevPlay?.by === S.me?.id) unlock('king_penalty');
       t += 150;
+    } else if (ev.type === 'pending') {
+      bubble(ev.playerId, `+${ev.count}?`, t + 300);
+      if (ev.playerId === S.me?.id) setTimeout(() => { haptic('warning'); sfx.penalty(); }, t + 350);
+    } else if (ev.type === 'transfer') {
+      bubble(ev.playerId, `Перевёл! +${ev.count}`, t + 300);
+      setTimeout(sfx.skip, t + 350);
+      if (ev.to === S.me?.id) setTimeout(() => { haptic('warning'); shakeScreen(); }, t + 350);
     } else if (ev.type === 'lastCard') {
       setTimeout(() => announceLast(ev.playerId), t + 350);
     } else if (ev.type === 'skip') {
