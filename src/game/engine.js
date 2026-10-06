@@ -132,7 +132,7 @@ export class Game {
 
     // Эффект на следующего игрока
     let next = this.nextIndex(this.turn);
-    const drawN = this.rules.drawEffects[card.rank] || 0;
+    const drawN = this.rules.drawEffects[card.id] ?? this.rules.drawEffects[card.rank] ?? 0;
     if (drawN > 0) {
       const victim = this.players[next];
       for (let i = 0; i < drawN; i++) { const c = this.drawCard(); if (c) victim.hand.push(c); }

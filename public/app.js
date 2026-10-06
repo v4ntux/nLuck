@@ -1,4 +1,5 @@
 import { SPRITE, cardEl, SUIT_SYMBOL, SUIT_NAME, isRed, rankLabel } from './cards.js';
+import { sfx, isMuted, setMuted } from './sound.js';
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -98,8 +99,9 @@ connect();
 function onMessage(m) {
   switch (m.type) {
     case 'welcome': S.me = m.me; renderMe(); break;
-    case 'error': toast(m.message); haptic('error'); shakeCard(S.lastTried); S.lastTried = null; break;
+    case 'error': toast(m.message); haptic('error'); sfx.error(); shakeCard(S.lastTried); S.lastTried = null; break;
     case 'queue': onQueue(m); break;
+    case 'stats': onStats(m); break;
     case 'room': onRoom(m.room); break;
     case 'game': onGame(m.game); break;
   }
@@ -120,6 +122,11 @@ function goBack() {
   show(S.history.pop() || 'home', { push: false });
 }
 function home() { S.history = []; show('home', { push: false }); }
+
+function syncSound() { $$('.sound-toggle').forEach(b => (b.innerHTML = b.classList.contains('btn') ? (isMuted() ? '🔇 Звук выключен' : '🔊 Звук включён') : (isMuted() ? '🔇' : '🔊'))); }
+$$('.sound-toggle').forEach(b => b.addEventListener('click', () => { setMuted(!isMuted()); syncSound(); sfx.click(); }));
+syncSound();
+document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-card, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
 
 $$('[data-go]').forEach(b => b.addEventListener('click', () => { haptic(); show(b.dataset.go); }));
 $$('[data-back]').forEach(b => b.addEventListener('click', goBack));
@@ -164,23 +171,54 @@ function renderMe() {
 })();
 
 // ---------- матчмейкинг ----------
-$$('[data-queue]').forEach(b => b.addEventListener('click', () => { haptic('medium'); send({ type: 'queue', size: Number(b.dataset.queue) }); }));
+$$('[data-queue]').forEach(b => b.addEventListener('click', () => { haptic('medium'); send({ type: 'queue', mode: b.dataset.queue }); }));
 $$('[data-practice]').forEach(b => b.addEventListener('click', () => { haptic('medium'); send({ type: 'practice', bots: Number(b.dataset.practice) }); }));
 $('#queue-cancel').addEventListener('click', () => send({ type: 'queue_cancel' }));
 $('#queue-bots').addEventListener('click', () => send({ type: 'queue_bots' }));
 
+const MODE_NAME = { duel: 'Дуэль', trio: 'Трое', party: 'Компания 4–6' };
+const plural = (n, one, few, many) => n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many;
+
+function onStats(m) {
+  S.stats = m;
+  for (const [mode, st] of Object.entries(m.modes)) {
+    const el = $(`[data-stat="${mode}"]`);
+    if (!el) continue;
+    const html = `<i class="dot play"></i>${st.playing} ${plural(st.playing, 'играет', 'играют', 'играют')} <i class="dot find"></i>${st.searching} ${plural(st.searching, 'ищет', 'ищут', 'ищут')}`;
+    if (el.innerHTML !== html) { el.innerHTML = html; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  }
+  $('#online-count').textContent = `Сейчас онлайн: ${m.online}`;
+  renderQueueStat();
+}
+function renderQueueStat() {
+  const q = S.queue, st = q && S.stats?.modes[q.mode];
+  if (!st) return;
+  $('#queue-stat').innerHTML = `<b>${MODE_NAME[q.mode]}</b><br>${st.searching} ${plural(st.searching, 'ищет', 'ищут', 'ищут')} · ${st.playing} ${plural(st.playing, 'играет', 'играют', 'играют')}`;
+}
+
 let queueTimer;
 function onQueue(m) {
   clearInterval(queueTimer);
-  if (!m.size) { leaveQueueUi(); if (S.screen === 'queue') show(S.history.pop() || 'home', { push: false }); return; }
+  if (!m.mode) { leaveQueueUi(); if (S.screen === 'queue') show(S.history.pop() || 'home', { push: false }); return; }
+  const prevCount = S.queue?.count;
   S.queue = m;
   show('queue');
-  $('#queue-count').textContent = `${m.count} / ${m.size}`;
+  const cnt = $('#queue-count');
+  cnt.textContent = m.min === m.max ? `${m.count} / ${m.max}` : `${m.count} / ${m.min}–${m.max}`;
+  if (prevCount !== undefined && prevCount !== m.count) { cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); sfx.deal(); }
+  renderQueueStat();
   S.queueStart ??= Date.now();
+  const skew = m.now ? Date.now() - m.now : 0;
   const tick = () => {
     const sec = Math.max(0, Math.floor((Date.now() - S.queueStart) / 1000));
     $('#queue-time').textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
     $('#queue-bots').classList.toggle('hidden', sec < 10);
+    const qs = $('#queue-start');
+    if (m.startsAt) {
+      const left = Math.max(0, Math.ceil((m.startsAt - (Date.now() - skew)) / 1000));
+      qs.textContent = `Старт через ${left} с — ждём ещё игроков`;
+      qs.classList.remove('hidden');
+    } else qs.classList.add('hidden');
   };
   tick();
   queueTimer = setInterval(tick, 500);
@@ -378,7 +416,8 @@ function renderTable(g, deal) {
     if (!p.out) wrap.insertAdjacentHTML('beforeend', `<span class="cnt">${p.cards}</span>`);
     if (seat && seat.online === false && !seat.bot) wrap.insertAdjacentHTML('beforeend', '<span class="off-badge">📵</span>');
     el.appendChild(wrap);
-    el.insertAdjacentHTML('beforeend', `<div class="nm">${esc(p.name)}</div><div class="sc">${p.left ? 'вышел' : p.out ? 'выбыл' : p.score}</div>`
+    const bumped = S.scores?.[p.id] !== undefined && S.scores[p.id] !== p.score;
+    el.insertAdjacentHTML('beforeend', `<div class="nm">${esc(p.name)}</div><div class="sc${bumped ? ' pop' : ''}">${p.left ? 'вышел' : p.out ? 'выбыл' : p.score}</div>`
       + `<div class="mini">${p.out ? '' : '<i></i>'.repeat(Math.min(p.cards, 7))}</div>`);
     box.appendChild(el);
   }
@@ -412,7 +451,9 @@ function renderTable(g, deal) {
   info.classList.toggle('turn', mine);
   info.innerHTML = '';
   info.appendChild(avatar(S.me));
-  info.insertAdjacentHTML('beforeend', `<span class="nm">${esc(S.me?.name)}</span><span class="sc">${me ? me.score : 0}</span>`);
+  const myBump = me && S.scores?.[me.id] !== undefined && S.scores[me.id] !== me.score;
+  info.insertAdjacentHTML('beforeend', `<span class="nm">${esc(S.me?.name)}</span><span class="sc${myBump ? ' pop' : ''}">${me ? me.score : 0}</span>`);
+  S.scores = Object.fromEntries(ps.map(p => [p.id, p.score]));
 
   $('#btn-draw').disabled = !mine || (!g.cover && g.hasDrawn);
   $('#btn-pass').disabled = !mine || !g.canPass;
@@ -446,6 +487,8 @@ function renderHand(g, deal = false) {
     if (!el) {
       el = cardEl(c, { cls: 'in-hand' });
       el.addEventListener('click', () => playCard(c));
+      el.addEventListener('pointerdown', () => el.classList.add('lift'));
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(e => el.addEventListener(e, () => el.classList.remove('lift')));
       S.handEls.set(c.id, el);
       box.appendChild(el);
       if (S.initialized) {
@@ -490,11 +533,12 @@ function throwCard(card, from, { delay = 0, flip = false } = {}) {
   const startRot = (Math.random() - 0.5) * 16;
   setTimeout(() => {
     document.body.appendChild(el);
+    sfx.flick();
     el.animate([
       { transform: `translate(0,0) rotate(${startRot}deg) scale(1)` },
       { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - arc}px) rotate(${startRot + spin * 0.55}deg) scale(${(1 + sc) / 2 * 1.22})`, offset: 0.5 },
       { transform: `translate(${dx}px, ${dy}px) rotate(${endRot + spin}deg) scale(${sc})` },
-    ], { duration: dur, easing: 'cubic-bezier(.3,.55,.35,1)', fill: 'forwards' });
+    ], { duration: dur, easing: 'cubic-bezier(.12,.75,.25,1)', fill: 'forwards' });
     if (flip) { // переворот рубашкой вниз прямо в полёте
       const half = dur * 0.28;
       el.firstElementChild.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
@@ -505,6 +549,7 @@ function throwCard(card, from, { delay = 0, flip = false } = {}) {
     }
     setTimeout(() => {
       el.remove();
+      sfx.land();
       top.style.visibility = '';
       top.classList.remove('thud'); void top.offsetWidth; top.classList.add('thud');
       const pr = rectOf(pile);
@@ -544,6 +589,8 @@ function animateEvents(events, before, firstLoad) {
         for (let i = 0; i < Math.min(p.cards, 5); i++) fly(cardEl(null, { back: true }), db, to, { delay: 250 + i * 90 + k * 30, dur: 380 });
       });
       haptic('light');
+      sfx.shuffle();
+      for (let i = 0; i < 10; i++) sfx.deal(0.35 + i * 0.09);
     } else if (ev.type === 'play') {
       const isMe = ev.playerId === S.me?.id;
       const from = isMe ? before.hand.get(ev.card.id) : centerRect(before.opp[ev.playerId], 40);
@@ -556,18 +603,26 @@ function animateEvents(events, before, firstLoad) {
         const db = rectOf($('#deck'));
         const to = centerRect(rectOf($(`#opponents .opp[data-id="${CSS.escape(ev.playerId)}"] .ava-wrap`)), 26);
         for (let i = 0; i < (ev.count || 1); i++) fly(cardEl(null, { back: true }), db, to, { delay: t + i * 110, dur: 380 });
-      } else if (ev.type === 'penalty') haptic('warning');
+      } else if (ev.type === 'penalty') { haptic('warning'); setTimeout(() => shakeScreen(), t); }
+      setTimeout(() => (ev.type === 'penalty' ? sfx.penalty() : sfx.draw()), t);
       if (ev.type === 'penalty') bubble(ev.playerId, `+${ev.count}`, t);
       t += 150;
     } else if (ev.type === 'skip') {
       bubble(ev.playerId, '⏭', t);
+      setTimeout(sfx.skip, t + 300);
     } else if (ev.type === 'pass') {
       bubble(ev.playerId, 'пас', t);
     } else if (ev.type === 'reshuffle') {
-      $('#deck').classList.remove('shuffle-anim'); void $('#deck').offsetWidth; $('#deck').classList.add('shuffle-anim');
+      $('#deck').classList.remove('shuffle-anim'); void $('#deck').offsetWidth; $('#deck').classList.add('shuffle-anim'); sfx.shuffle();
     }
   }
-  if (myTurn()) setTimeout(() => haptic('heavy'), t);
+  if (myTurn() && S.wasTurn !== true) setTimeout(() => { haptic('heavy'); sfx.turn(); }, t + 200);
+  S.wasTurn = myTurn();
+}
+
+function shakeScreen() {
+  const t = $('.table');
+  t.classList.remove('jolt'); void t.offsetWidth; t.classList.add('jolt');
 }
 
 function bubble(playerId, text, delay = 0) {
@@ -617,8 +672,13 @@ function renderRound() {
   const body = $('#round-body');
   body.innerHTML = rr.lastCard && ['Q', 'K'].includes(rr.lastCard.rank)
     ? `<p class="hint center">Последняя карта: <b>${cardText(rr.lastCard)}</b></p>` : '';
-  [...rr.results].sort((a, b) => a.delta - b.delta).forEach(r => body.appendChild(resultRow(r, { win: r.id === rr.winnerId, target: g.target })));
+  [...rr.results].sort((a, b) => a.delta - b.delta).forEach((r, i) => {
+    const row = resultRow(r, { win: r.id === rr.winnerId, target: g.target });
+    row.style.animationDelay = `${150 + i * 110}ms`;
+    body.appendChild(row);
+  });
   haptic(w ? 'success' : 'warning');
+  w ? sfx.win() : sfx.stamp();
   openModal('round');
   let s = 7;
   clearInterval(roundTimer);
@@ -645,7 +705,7 @@ function renderOver() {
   const host = S.room?.hostId === S.me?.id;
   again.disabled = priv && !host;
   again.textContent = !priv ? '🔍 Искать новую игру' : host ? '🔁 Ещё партию' : 'Ждём создателя стола…';
-  if (!$('#modal-over').classList.contains('open')) { haptic(win ? 'success' : 'error'); openModal('over'); }
+  if (!$('#modal-over').classList.contains('open')) { haptic(win ? 'success' : 'error'); win ? sfx.win() : sfx.lose(); openModal('over'); }
 }
 
 function renderScores() {

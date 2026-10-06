@@ -18,7 +18,7 @@
     <section class="screen active" id="screen-home">
       <div class="home-top">
         <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span id="me-name">…</span></div>
-        <div class="conn" id="conn" title="Соединение"></div>
+        <div class="top-right"><button class="icon-btn sound-toggle" aria-label="Звук">🔊</button><div class="conn" id="conn" title="Соединение"></div></div>
       </div>
       <div class="logo">
         <div class="logo-fan" id="logo-fan"></div>
@@ -36,12 +36,12 @@
     <!-- Выбор количества игроков для матчмейкинга -->
     <section class="screen" id="screen-mode">
       <header class="bar"><button class="back" data-back>‹</button><h2>Поиск игры</h2></header>
-      <p class="hint">Сколько игроков за столом?</p>
-      <div class="size-grid">
-        <button class="size-card" data-queue="2"><b>2</b><span>Дуэль</span></button>
-        <button class="size-card" data-queue="3"><b>3</b><span>Трое</span></button>
-        <button class="size-card" data-queue="4"><b>4</b><span>Полный стол</span></button>
+      <div class="modes">
+        <button class="mode-card" data-queue="duel"><b>Дуэль</b><span class="ppl">1 на 1</span><span class="stat" data-stat="duel"></span></button>
+        <button class="mode-card" data-queue="trio"><b>Трое</b><span class="ppl">3 игрока</span><span class="stat" data-stat="trio"></span></button>
+        <button class="mode-card" data-queue="party"><b>Компания</b><span class="ppl">4–6 игроков</span><span class="stat" data-stat="party"></span></button>
       </div>
+      <p class="hint center" id="online-count"></p>
     </section>
 
     <!-- Очередь -->
@@ -51,6 +51,8 @@
         <h2>Ищем соперников…</h2>
         <p class="queue-count" id="queue-count">1 / 2</p>
         <p class="queue-time" id="queue-time">0:00</p>
+        <p class="queue-stat" id="queue-stat"></p>
+        <p class="queue-start hidden" id="queue-start"></p>
         <button class="btn btn-secondary hidden" id="queue-bots">🤖 Начать с ботами</button>
         <button class="btn btn-ghost" id="queue-cancel">Отмена</button>
       </div>
@@ -170,6 +172,7 @@
     <div class="sheet">
       <h3>Меню</h3>
       <button class="btn btn-secondary" data-modal="rules">📖 Правила</button>
+      <button class="btn btn-secondary sound-toggle">🔊 Звук</button>
       <button class="btn btn-danger" id="game-leave">🚪 Покинуть стол</button>
       <button class="btn btn-ghost" data-close>Вернуться в игру</button>
     </div>
@@ -185,7 +188,8 @@
         <li><b>6</b> — следующий игрок берёт <b>1 карту</b> и пропускает ход</li>
         <li><b>7</b> — следующий игрок берёт <b>2 карты</b> и пропускает ход</li>
         <li><b>8</b> — надо сразу покрыть: восьмёркой или картой той же масти (на 8♠ — любые ♠). Нечем — тянешь из колоды, пока не покроешь</li>
-        <li><b>Туз ♠</b> — следующий пропускает ход (вдвоём — ходишь ещё раз)</li>
+        <li><b>Туз</b> — следующий пропускает ход и ничего не берёт (вдвоём — ходишь ещё раз)</li>
+        <li><b>Король ♠</b> — следующий берёт <b>4 карты</b> и пропускает ход</li>
         <li><b>Дама</b> — кладётся на любую карту и заказывает масть</li>
         <li><b>9</b> и <b>10</b> — обычные карты без эффектов</li>
       </ul>

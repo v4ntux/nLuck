@@ -61,9 +61,10 @@ test('конец раунда: K♠ последней картой даёт −
   g.players[0].hand = [c('K', 'spades')];
   g.players[1].hand = [c('Q', 'hearts'), c('9', 'clubs')];
   g.players[2].hand = [c('10', 'diamonds')];
+  g.deck = [c('6', 'clubs'), c('6', 'diamonds'), c('7', 'clubs'), c('8', 'clubs')];
   g.play('a', 'K-spades');
   assert.equal(g.players[0].score, -80);
-  assert.equal(g.players[1].score, 29);
+  assert.equal(g.players[1].score, 29 + 27); // ещё и взял 4 карты за K♠
   assert.equal(g.players[2].score, 10);
   assert.equal(g.phase, 'roundOver');
 });
@@ -140,7 +141,7 @@ test('8 нечем покрыть — тянем пока не найдём', ()
   assert.throws(() => g.play('a', '6-hearts'));
   g.draw('a');
   g.play('a', 'K-spades');
-  assert.equal(g.current.id, 'b');
+  assert.equal(g.current.id, 'c'); // K♠: b берёт 4 и пропускает
 });
 
 test('туз ♠ пропускает следующего, 1 на 1 — ход возвращается', () => {
@@ -153,11 +154,11 @@ test('туз ♠ пропускает следующего, 1 на 1 — ход 
   assert.equal(g.phase, 'roundOver');
 });
 
-test('туз другой масти — без пропуска; после добора ход не уходит сам', () => {
+test('после добора ход не уходит сам', () => {
   const g = setup();
   g.discard = [c('9', 'hearts')]; g.suit = 'hearts';
-  g.players[0].hand = [c('A', 'hearts'), c('6', 'clubs')];
-  g.play('a', 'A-hearts');
+  g.players[0].hand = [c('10', 'hearts'), c('6', 'clubs')];
+  g.play('a', '10-hearts');
   assert.equal(g.current.id, 'b');
   g.players[1].hand = [c('7', 'clubs')];
   g.deck.push(c('J', 'clubs'));
@@ -165,4 +166,24 @@ test('туз другой масти — без пропуска; после д�
   assert.equal(g.current.id, 'b');
   g.pass('b');
   assert.equal(g.current.id, 'c');
+});
+
+test('K♠ — следующий берёт 4 и пропускает', () => {
+  const g = setup();
+  g.discard = [c('9', 'spades')]; g.suit = 'spades';
+  g.players[0].hand = [c('K', 'spades'), c('9', 'hearts')];
+  const before = g.players[1].hand.length;
+  g.play('a', 'K-spades');
+  assert.equal(g.players[1].hand.length, before + 4);
+  assert.equal(g.current.id, 'c');
+});
+
+test('любой туз — пропуск без добора, вдвоём ход снова мой', () => {
+  const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+  g.turn = 0; g.discard = [c('9', 'hearts')]; g.suit = 'hearts';
+  g.players[0].hand = [c('A', 'hearts'), c('10', 'hearts')];
+  const before = g.players[1].hand.length;
+  g.play('a', 'A-hearts');
+  assert.equal(g.players[1].hand.length, before);
+  assert.equal(g.current.id, 'a');
 });

@@ -5,12 +5,18 @@ const BOT_NAMES = ['Бот Вася', 'Бот Маша', 'Бот Петя', 'Б�
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ROUND_PAUSE_MS = 7000;
 const MAX_PLAYERS = 6;
+export const MODES = {
+  duel: { min: 2, max: 2 },
+  trio: { min: 3, max: 3 },
+  party: { min: 4, max: 6, waitMs: 15000 },
+};
 
 export class Lobby {
   constructor() {
     this.users = new Map();  // userId -> { id, name, photo, ws, roomCode }
     this.rooms = new Map();  // code -> room
-    this.queues = { 2: [], 3: [], 4: [] };
+    this.queues = { duel: [], trio: [], party: [] };
+    this.modeTimers = {};
   }
 
   // ---------- соединения ----------
@@ -21,6 +27,8 @@ export class Lobby {
     u = { ...(u || {}), ...profile, ws };
     this.users.set(u.id, u);
     this.send(u, { type: 'welcome', me: { id: u.id, name: u.name, photo: u.photo } });
+    this.send(u, this.stats());
+    this.statsChanged();
     const room = u.roomCode && this.rooms.get(u.roomCode);
     if (room) { this.sendRoom(room); if (room.game) { this.sendGame(room, u.id); this.schedule(room); } }
     else u.roomCode = null;
@@ -31,6 +39,7 @@ export class Lobby {
     if (user.ws !== ws) return;
     user.ws = null;
     this.leaveQueue(user);
+    this.statsChanged();
     const room = user.roomCode && this.rooms.get(user.roomCode);
     if (room) {
       if (!room.game || room.game.phase === 'gameOver') this.leaveRoom(user);
@@ -45,7 +54,7 @@ export class Lobby {
   handle(user, msg) {
     try {
       switch (msg.type) {
-        case 'queue': return this.joinQueue(user, Number(msg.size));
+        case 'queue': return this.joinQueue(user, String(msg.mode));
         case 'queue_cancel': return this.leaveQueue(user, true);
         case 'queue_bots': return this.queueWithBots(user);
         case 'practice': return this.practice(user, Number(msg.bots));
@@ -67,54 +76,100 @@ export class Lobby {
 
   // ---------- матчмейкинг ----------
 
-  joinQueue(user, size) {
-    if (!this.queues[size]) throw new LobbyError('Неверный размер стола');
+  joinQueue(user, mode) {
+    if (!MODES[mode]) throw new LobbyError('Неверный режим');
     if (user.roomCode) this.leaveRoom(user);
     this.leaveQueue(user);
-    this.queues[size].push({ id: user.id, since: Date.now() });
-    user.queueSize = size;
-    this.flushQueue(size);
+    this.queues[mode].push({ id: user.id, since: Date.now() });
+    user.queueMode = mode;
+    this.flushQueue(mode);
   }
 
   leaveQueue(user, notify = false) {
-    for (const size of Object.keys(this.queues)) {
-      const q = this.queues[size];
+    for (const mode of Object.keys(this.queues)) {
+      const q = this.queues[mode];
       const i = q.findIndex(e => e.id === user.id);
-      if (i >= 0) { q.splice(i, 1); this.broadcastQueue(Number(size)); }
+      if (i >= 0) { q.splice(i, 1); this.flushQueue(mode); }
     }
-    user.queueSize = null;
-    if (notify) this.send(user, { type: 'queue', size: null });
+    user.queueMode = null;
+    if (notify) this.send(user, { type: 'queue', mode: null });
   }
 
-  flushQueue(size) {
-    const q = this.queues[size];
-    while (q.length >= size) {
-      const group = q.splice(0, size).map(e => this.users.get(e.id)).filter(Boolean);
-      group.forEach(u => (u.queueSize = null));
-      const room = this.newRoom(group[0].id, false);
-      for (const u of group) this.seat(room, u);
-      this.start(room);
+  flushQueue(mode) {
+    const m = MODES[mode], q = this.queues[mode];
+    while (q.length >= m.max) this.startGroup(mode, q.splice(0, m.max));
+    if (m.waitMs) {
+      // 4–6 игроков: набралось минимум — ждём ещё немного, вдруг подойдут остальные
+      if (q.length >= m.min && !this.modeTimers[mode]) {
+        const startsAt = Date.now() + m.waitMs;
+        this.modeTimers[mode] = { startsAt, timer: setTimeout(() => {
+          this.modeTimers[mode] = null;
+          if (q.length >= m.min) this.startGroup(mode, q.splice(0, m.max));
+          this.flushQueue(mode);
+        }, m.waitMs) };
+      } else if (q.length < m.min && this.modeTimers[mode]) {
+        clearTimeout(this.modeTimers[mode].timer);
+        this.modeTimers[mode] = null;
+      }
     }
-    this.broadcastQueue(size);
+    this.broadcastQueue(mode);
+    this.statsChanged();
   }
 
-  broadcastQueue(size) {
-    const q = this.queues[size];
-    for (const e of q) this.send(this.users.get(e.id), { type: 'queue', size, count: q.length, since: e.since });
+  startGroup(mode, entries) {
+    const group = entries.map(e => this.users.get(e.id)).filter(Boolean);
+    if (!group.length) return;
+    group.forEach(u => (u.queueMode = null));
+    const room = this.newRoom(group[0].id, false);
+    room.mode = mode;
+    for (const u of group) this.seat(room, u);
+    while (room.seats.length < 2) this.seatBot(room);
+    this.start(room);
+  }
+
+  broadcastQueue(mode) {
+    const m = MODES[mode], q = this.queues[mode];
+    const startsAt = this.modeTimers[mode]?.startsAt ?? null;
+    for (const e of q) this.send(this.users.get(e.id), { type: 'queue', mode, count: q.length, min: m.min, max: m.max, startsAt, now: Date.now() });
   }
 
   queueWithBots(user) {
-    const size = user.queueSize;
-    if (!size) throw new LobbyError('Вы не в поиске');
-    // Забираем всех ждущих этого размера + добиваем ботами
-    const q = this.queues[size];
-    const waiting = q.splice(0).map(e => this.users.get(e.id)).filter(Boolean);
-    waiting.forEach(u => (u.queueSize = null));
+    const mode = user.queueMode;
+    if (!mode) throw new LobbyError('Вы не в поиске');
+    // Забираем всех ждущих этого режима + добиваем ботами до минимума
+    const m = MODES[mode], q = this.queues[mode];
+    const entries = q.splice(0, m.max);
+    if (this.modeTimers[mode]) { clearTimeout(this.modeTimers[mode].timer); this.modeTimers[mode] = null; }
+    const group = entries.map(e => this.users.get(e.id)).filter(Boolean);
+    group.forEach(u => (u.queueMode = null));
     const room = this.newRoom(user.id, false);
-    for (const u of waiting) this.seat(room, u);
-    while (room.seats.length < size) this.seatBot(room);
-    this.broadcastQueue(size);
+    room.mode = mode;
+    for (const u of group) this.seat(room, u);
+    while (room.seats.length < m.min) this.seatBot(room);
     this.start(room);
+    this.flushQueue(mode);
+  }
+
+  stats() {
+    const modes = {};
+    for (const mode of Object.keys(MODES)) modes[mode] = { searching: this.queues[mode].length, playing: 0 };
+    for (const room of this.rooms.values()) {
+      if (!room.mode || !room.game || room.game.phase === 'gameOver') continue;
+      modes[room.mode].playing += room.seats.filter(s => !s.bot).length;
+    }
+    let online = 0;
+    for (const u of this.users.values()) if (u.ws) online++;
+    return { type: 'stats', modes, online };
+  }
+
+  /** Счётчики «играют / ищут» — всем, не чаще раза в 0.5 с */
+  statsChanged() {
+    if (this.statsTimer) return;
+    this.statsTimer = setTimeout(() => {
+      this.statsTimer = null;
+      const msg = this.stats();
+      for (const u of this.users.values()) this.send(u, msg);
+    }, 500);
   }
 
   practice(user, bots) {
@@ -171,6 +226,7 @@ export class Lobby {
 
   leaveRoom(user) {
     const room = user.roomCode && this.rooms.get(user.roomCode);
+    this.statsChanged();
     user.roomCode = null;
     this.send(user, { type: 'room', room: null });
     if (!room) return;
@@ -224,9 +280,9 @@ export class Lobby {
     if (!room || room.game?.phase !== 'gameOver') return;
     if (!room.private) {
       // В публичной игре «ещё раз» = снова в поиск
-      const size = room.game.players.length;
+      const mode = room.mode || 'duel';
       this.leaveRoom(user);
-      return this.joinQueue(user, Math.min(Math.max(size, 2), 4));
+      return this.joinQueue(user, mode);
     }
     if (room.hostId !== user.id) throw new LobbyError('Новую партию запускает создатель стола');
     room.seats = room.seats.filter(s => s.bot || this.users.get(s.id)?.roomCode === room.code);
@@ -318,6 +374,7 @@ export class Lobby {
 
   broadcastGame(room) {
     const g = room.game;
+    if (room.mode) this.statsChanged();
     if (room.sentGame !== g) { room.sentGame = g; room.sentSeq = 0; }
     const events = g.log.filter(e => e.seq > room.sentSeq);
     room.sentSeq = g.eventSeq;

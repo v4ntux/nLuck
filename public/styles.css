@@ -13,6 +13,8 @@
   --safe-b: env(safe-area-inset-bottom, 0px);
   --grain: none; /* подставляется из app.js (сгенерированная текстура) */
   --shadow: 0 1px 1px rgba(60, 40, 10, .18), 0 3px 8px rgba(60, 40, 10, .18);
+  --snap: cubic-bezier(.16, 1, .3, 1);      /* резко, потом плавно */
+  --spring: cubic-bezier(.34, 1.56, .64, 1); /* с перелётом */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -28,8 +30,9 @@ body {
 
 #app { position: relative; height: 100%; max-width: 560px; margin: 0 auto; }
 .screen { position: absolute; inset: 0; display: none; flex-direction: column; padding: 16px 16px calc(16px + var(--safe-b)); overflow-y: auto; }
-.screen.active { display: flex; animation: fade .25s ease; }
-@keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+.screen.active { display: flex; animation: screenIn .45s var(--snap); }
+@keyframes screenIn { from { opacity: 0; transform: translateX(28px) scale(.98); } }
+@keyframes fade { from { opacity: 0; } }
 .hidden { display: none !important; }
 
 /* ---------- кнопки: как бумажные карточки ---------- */
@@ -38,9 +41,9 @@ body {
   padding: 14px 18px; border-radius: 6px; width: 100%; color: var(--ink);
   background: var(--paper-3) var(--grain); border: 1.5px solid var(--ink);
   box-shadow: 3px 3px 0 var(--ink);
-  transition: transform .08s ease, box-shadow .08s ease, opacity .15s;
+  transition: transform .4s var(--spring), box-shadow .4s var(--spring), opacity .15s;
 }
-.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.btn:active { transform: translate(2px, 2px) scale(.97); box-shadow: 1px 1px 0 var(--ink); transition-duration: .05s; }
 .btn:disabled { opacity: .35; pointer-events: none; }
 .btn-primary { background-color: var(--red); color: #fbf3e4; border-color: var(--red-dark); box-shadow: 3px 3px 0 var(--red-dark); }
 .btn-primary:active { box-shadow: 1px 1px 0 var(--red-dark); }
@@ -55,6 +58,7 @@ body {
 
 /* ---------- главный ---------- */
 .home-top { display: flex; justify-content: space-between; align-items: center; }
+.top-right { display: flex; align-items: center; gap: 12px; }
 .me-chip { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border: 1.5px solid var(--ink); border-radius: 999px; background: var(--paper-3) var(--grain); font-weight: 700; font-size: 14px; }
 .avatar {
   width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center;
@@ -149,7 +153,7 @@ body {
 .opp { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 0; position: relative; transition: opacity .3s; }
 .opp.out { opacity: .35; }
 .opp .ava-wrap { position: relative; width: 52px; height: 52px; }
-.opp .avatar { width: 52px; height: 52px; font-size: 20px; transition: box-shadow .25s, transform .25s; }
+.opp .avatar { width: 52px; height: 52px; font-size: 20px; transition: box-shadow .3s var(--snap), transform .5s var(--spring); }
 .opp.turn .avatar { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--red); transform: scale(1.06); }
 .opp .nm { font-size: 13px; font-weight: 700; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .opp .sc { font-size: 13px; color: var(--red); font-weight: 700; }
@@ -161,7 +165,7 @@ body {
 .opp .mini i:first-child { margin-left: 0; }
 .opp .cnt { position: absolute; top: -4px; right: -10px; background: var(--ink); color: var(--paper-3); font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 6px; border: 2px solid var(--paper); }
 .opp .off-badge { position: absolute; bottom: -2px; left: -8px; font-size: 12px; }
-.bubble { position: absolute; top: -2px; left: 50%; transform: translate(-50%, -100%); background: #fbf7ee; color: var(--ink); border: 1.5px solid var(--ink); font-size: 15px; font-weight: 700; border-radius: 8px; padding: 2px 9px; white-space: nowrap; animation: pop 1.6s forwards; z-index: 5; box-shadow: 2px 2px 0 var(--ink); }
+.bubble { position: absolute; top: -2px; left: 50%; transform: translate(-50%, -100%); background: #fbf7ee; color: var(--ink); border: 1.5px solid var(--ink); font-size: 15px; font-weight: 700; border-radius: 8px; padding: 2px 9px; white-space: nowrap; animation: pop 1.6s var(--snap) forwards; z-index: 5; box-shadow: 2px 2px 0 var(--ink); }
 @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -70%) scale(.6); } 15%,80% { opacity: 1; transform: translate(-50%, -100%) scale(1); } 100% { opacity: 0; } }
 
 .table-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 30px; position: relative; min-height: 150px; }
@@ -193,7 +197,7 @@ body {
 
 .me-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; position: relative; }
 .me-info { display: flex; align-items: center; gap: 8px; font-weight: 700; min-width: 0; position: relative; }
-.me-info .avatar { width: 38px; height: 38px; transition: box-shadow .25s, transform .25s; }
+.me-info .avatar { width: 38px; height: 38px; transition: box-shadow .3s var(--snap), transform .5s var(--spring); }
 .me-info.turn .avatar { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--red); transform: scale(1.06); }
 .me-info .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .me-info .sc { color: var(--red); }
@@ -203,9 +207,10 @@ body {
 .hand { position: relative; height: calc(var(--card-w) * 1.4 + 40px); margin-top: 4px; --card-w: 84px; }
 .hand .card {
   position: absolute; bottom: 14px; left: 50%; transform-origin: 50% 100%; cursor: pointer;
-  transition: transform .42s cubic-bezier(.2,.8,.3,1.05);
+  transition: transform .55s var(--snap), translate .2s var(--snap);
   will-change: transform;
 }
+.hand .card.lift { translate: 0 -22px; transition: translate .08s ease-out; }
 .hand .card:active { filter: brightness(.96); }
 .hand .card.flip .card-svg { animation: flip .5s ease-out backwards; animation-delay: inherit; }
 @keyframes flip { 0% { transform: rotateY(90deg); } 60% { transform: rotateY(0); } }
@@ -220,9 +225,9 @@ body {
 .sheet {
   width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; background: #fbf7ee var(--grain);
   border-radius: 10px 10px 0 0; padding: 22px 18px calc(20px + var(--safe-b)); display: flex; flex-direction: column; gap: 10px;
-  border-top: 1.5px solid var(--ink); box-shadow: 0 -6px 20px rgba(60,40,10,.25); animation: up .3s cubic-bezier(.2,.9,.3,1);
+  border-top: 1.5px solid var(--ink); box-shadow: 0 -6px 20px rgba(60,40,10,.25); animation: up .5s var(--snap);
 }
-@keyframes up { from { transform: translateY(40%); } }
+@keyframes up { from { transform: translateY(70%); } }
 .sheet h3 { margin: 0 0 4px; text-align: center; font-family: 'Playfair Display', serif; font-size: 26px; color: var(--red); }
 .suits { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .suit-btn { aspect-ratio: 1; border-radius: 8px; border: 1.5px solid var(--ink); background: #fff var(--grain); font-size: 44px; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
@@ -264,3 +269,37 @@ body {
 }
 @media (min-width: 480px) { .hand { --card-w: 96px; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ---------- режимы матчмейкинга ---------- */
+.modes { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.mode-card {
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 2px 10px; text-align: left; font: inherit; color: var(--ink);
+  padding: 16px 18px; border: 1.5px solid var(--ink); border-radius: 8px; background: #fbf7ee var(--grain); box-shadow: 3px 3px 0 var(--ink); cursor: pointer;
+  transition: transform .4s var(--spring), box-shadow .4s var(--spring);
+  animation: cardIn .55s var(--snap) backwards;
+}
+.mode-card:nth-child(2) { animation-delay: .06s; } .mode-card:nth-child(3) { animation-delay: .12s; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(18px) rotate(-1.5deg); } }
+.mode-card:active { transform: translate(2px, 2px) scale(.98); box-shadow: 1px 1px 0 var(--ink); transition-duration: .05s; }
+.mode-card b { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--red); }
+.mode-card .ppl { align-self: center; font-weight: 700; color: var(--ink-soft); }
+.mode-card .stat { grid-column: 1 / -1; font-size: 14px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; min-height: 20px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink); margin-left: 4px; }
+.dot:first-child { margin-left: 0; }
+.dot.play { background: #3f7a3a; } .dot.find { background: #d9a43a; }
+.pop { animation: numPop .45s var(--spring); }
+@keyframes numPop { 0% { transform: scale(1); } 30% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.sc.pop { display: inline-block; animation: numPop .6s var(--spring); }
+.queue-stat { margin: 0; font-size: 15px; color: var(--ink-soft); line-height: 1.5; }
+.queue-stat b { color: var(--ink); }
+.queue-start { margin: 0 0 6px; font-weight: 700; color: var(--red); }
+
+/* ---------- прочие анимации ---------- */
+.res-row { animation: rowIn .5s var(--snap) backwards; }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-24px); } }
+.table.jolt { animation: jolt .35s var(--snap); }
+@keyframes jolt { 15% { transform: translate(-6px, 2px); } 35% { transform: translate(5px, -2px); } 55% { transform: translate(-3px, 1px); } 100% { transform: none; } }
+.trophy { animation: trophy .8s var(--spring); }
+@keyframes trophy { from { transform: scale(0) rotate(-30deg); } }
+.suit-badge.show { animation: stamp .45s var(--spring); }
+@keyframes stamp { from { transform: translateY(-50%) scale(2.2) rotate(-25deg); opacity: 0; } }
