@@ -916,3 +916,9 @@ function trackGame(g) {
   } else st.streak = 0;
   saveProgress(); checkGoals();
 }
+
+// Кнопки бота «С друзьями» / «С ботами» открывают сразу нужный экран
+{
+  const go = new URLSearchParams(location.search).get('go');
+  if (['friends', 'practice'].includes(go) && !startParam) show(go);
+}
