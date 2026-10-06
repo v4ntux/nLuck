@@ -52,7 +52,7 @@ const S = {
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setHeaderColor('#0b0e1a'); tg.setBackgroundColor('#0b0e1a'); tg.setBottomBarColor?.('#0b0e1a'); } catch {}
+  try { tg.setHeaderColor('#efe5cf'); tg.setBackgroundColor('#efe5cf'); tg.setBottomBarColor?.('#efe5cf'); } catch {}
   try { tg.disableVerticalSwipes?.(); } catch {}
   tg.BackButton?.onClick(goBack);
 }

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -14,11 +15,13 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ALLOW_GUESTS = process.env.ALLOW_GUESTS === '1' || !BOT_TOKEN;
 
 const app = express();
-// Без долгого кэша: Telegram иначе показывает старую версию игры после обновлений
-app.use(express.static(path.join(__dirname, '..', 'public'), {
-  etag: true,
-  setHeaders: res => res.setHeader('Cache-Control', 'no-cache'),
-}));
+// Версия сборки в адресах файлов: каждая выкладка — новые URL, Telegram не покажет старьё из кэша
+const PUBLIC = path.join(__dirname, '..', 'public');
+const VERSION = (process.env.RAILWAY_GIT_COMMIT_SHA || Date.now().toString(36)).slice(0, 10);
+const indexHtml = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replaceAll('__V__', VERSION);
+app.get(['/', '/index.html'], (_req, res) => res.set('Cache-Control', 'no-store').type('html').send(indexHtml));
+app.use('/v/:ver', express.static(PUBLIC, { maxAge: '30d', immutable: true, index: false }));
+app.use(express.static(PUBLIC, { index: false, setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/config', (_req, res) => res.json({
   botUsername: botInfo?.username || null,

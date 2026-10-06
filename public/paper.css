@@ -1,0 +1,144 @@
+/* ================= Реалистичная бумага =================
+   Поверх styles.css: живая бумага вместо «комиксных» чернильных теней.
+   Мягкие тени, картон, каталожные карточки, скотч, следы от чашки. */
+:root {
+  --paper: #efe5cf;
+  --paper-2: #e4d6b8;
+  --paper-3: #f8f2e3;
+  --ink: #2b241b;
+  --ink-soft: rgba(43, 36, 27, .62);
+  --red: #a8291f;
+  --red-dark: #7a1a12;
+  --line: rgba(80, 60, 30, .2);
+  --lift: 0 1px 1px rgba(70, 50, 20, .18), 0 3px 6px rgba(70, 50, 20, .14), 0 10px 22px rgba(70, 50, 20, .10);
+  --lift-sm: 0 1px 1px rgba(70, 50, 20, .2), 0 2px 5px rgba(70, 50, 20, .14);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, .75), inset 0 -1px 0 rgba(120, 90, 40, .12);
+}
+
+/* стол: старая бумага, виньетка, следы от кружки */
+body {
+  background-color: var(--paper);
+  background-image:
+    var(--grain),
+    radial-gradient(circle at 86% 12%, transparent 46px, rgba(130, 90, 35, .10) 48px, rgba(130, 90, 35, .04) 52px, transparent 55px),
+    radial-gradient(circle at 12% 78%, rgba(150, 110, 50, .07), transparent 90px),
+    radial-gradient(ellipse at 50% 40%, #f8f1e1 0%, var(--paper) 55%, #d8c69f 100%);
+  background-attachment: fixed;
+}
+
+/* ---------- кнопки: картон ---------- */
+.btn {
+  border: 1px solid rgba(70, 50, 20, .32); border-radius: 10px;
+  background: linear-gradient(180deg, #fcf8ef, #efe5cf) ; background-image: var(--grain), linear-gradient(180deg, #fcf8ef, #ece1c8);
+  box-shadow: var(--edge), var(--lift);
+  transition: transform .35s var(--spring), box-shadow .35s var(--snap);
+}
+.btn:active { transform: translateY(2px) scale(.985); box-shadow: inset 0 2px 4px rgba(70, 50, 20, .22), 0 1px 1px rgba(70, 50, 20, .15); transition-duration: .06s; }
+.btn-primary {
+  color: #fbf1df; border-color: #6e170f; text-shadow: 0 -1px 0 rgba(0, 0, 0, .35);
+  background-image: var(--grain), linear-gradient(180deg, #bd3a2d, #97241a);
+  box-shadow: inset 0 1px 0 rgba(255, 200, 180, .35), inset 0 -2px 0 rgba(0, 0, 0, .15), var(--lift);
+}
+.btn-primary:active { box-shadow: inset 0 3px 6px rgba(0, 0, 0, .35), 0 1px 1px rgba(70, 50, 20, .2); }
+.btn-ghost { background: transparent; background-image: none; border: 1.5px dashed rgba(70, 50, 20, .4); box-shadow: none; }
+.btn-ghost:active { box-shadow: none; background: rgba(70, 50, 20, .05); }
+.btn-danger { color: #f7efe0; border-color: #1a140e; background-image: var(--grain), linear-gradient(180deg, #4a3b2e, #2f251c); box-shadow: inset 0 1px 0 rgba(255,255,255,.15), var(--lift); }
+.btn-link { background: none; border: 0; box-shadow: none; text-decoration: underline; text-decoration-style: dotted; }
+.btn-link:active { box-shadow: none; }
+.icon-btn, .back {
+  border: 1px solid rgba(70, 50, 20, .32); border-radius: 10px;
+  background-image: var(--grain), linear-gradient(180deg, #fcf8ef, #ece1c8);
+  box-shadow: var(--edge), var(--lift-sm);
+}
+.icon-btn:active, .back:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(70, 50, 20, .22); }
+
+/* ---------- главный ---------- */
+.me-chip { border: 1px solid rgba(70, 50, 20, .3); background-image: var(--grain), linear-gradient(180deg, #fcf8ef, #efe5cf); box-shadow: var(--edge), var(--lift-sm); }
+.me-text b { font-size: 15px; }
+.me-text small { font-size: 12px; color: var(--ink-soft); }
+.avatar { border: 1px solid rgba(70, 50, 20, .45); background-image: var(--grain), radial-gradient(circle at 35% 30%, #f3e4c0, #d9c08c); box-shadow: inset 0 1px 2px rgba(255,255,255,.6), 0 1px 2px rgba(70,50,20,.3); }
+.conn { border: 1px solid rgba(0,0,0,.35); box-shadow: inset 0 1px 1px rgba(255,255,255,.5); }
+/* «108» — оттиск красного штампа */
+.logo h1 {
+  color: var(--red); text-shadow: none; transform: rotate(-3deg); letter-spacing: -1px;
+  opacity: .93;
+  filter: drop-shadow(0 1px 0 rgba(120, 30, 20, .25));
+}
+.logo-fan .card { box-shadow: 0 2px 3px rgba(70,50,20,.25), 0 12px 24px rgba(70, 50, 20, .22); }
+
+/* ---------- листы бумаги со скотчем ---------- */
+.panel, .room-code-box {
+  position: relative; border: 0; border-radius: 3px; background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f5ecd9);
+  box-shadow: var(--lift); transform: rotate(-.3deg);
+}
+.panel:nth-of-type(even) { transform: rotate(.4deg); }
+.panel::before, .room-code-box::before {
+  content: ''; position: absolute; top: -10px; left: 50%; width: 92px; height: 22px; transform: translateX(-50%) rotate(-2deg);
+  background: rgba(236, 226, 196, .72); border-left: 1px dashed rgba(120,100,60,.25); border-right: 1px dashed rgba(120,100,60,.25);
+  box-shadow: 0 1px 2px rgba(70, 50, 20, .15);
+}
+.settings.panel::before { left: 18%; }
+
+/* ---------- режимы: каталожные карточки в линейку ---------- */
+.mode-card {
+  border: 0; border-radius: 4px; box-shadow: var(--lift);
+  background-color: #fdfaf2;
+  background-image:
+    var(--grain),
+    linear-gradient(90deg, transparent 52px, rgba(200, 60, 50, .35) 52px, rgba(200, 60, 50, .35) 53.5px, transparent 53.5px),
+    repeating-linear-gradient(180deg, transparent 0 25px, rgba(80, 120, 180, .16) 25px 26px);
+  background-position: 0 0, 0 0, 0 12px;
+}
+.mode-card:nth-child(1) { transform: rotate(-.8deg); } .mode-card:nth-child(2) { transform: rotate(.6deg); } .mode-card:nth-child(3) { transform: rotate(-.4deg); }
+.mode-card:active { transform: translateY(2px) rotate(0); box-shadow: var(--lift-sm); }
+.mode-card b { color: var(--red); }
+.mode-card .mc-ico { width: 36px; text-align: center; }
+.size-card { border: 0; border-radius: 4px; box-shadow: var(--lift); background-image: var(--grain), linear-gradient(180deg, #fdfaf2, #f3ead6); }
+.size-card:active { box-shadow: var(--lift-sm); }
+.dot { border: 1px solid rgba(0,0,0,.35); }
+
+/* ---------- очередь ---------- */
+.sh { border-color: #f8f2e3; box-shadow: 0 2px 3px rgba(70,50,20,.3), 0 10px 22px rgba(70,50,20,.25); }
+
+/* ---------- стол ---------- */
+.table-center::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 310px; height: 210px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: radial-gradient(closest-side, rgba(120, 90, 40, .12), transparent); pointer-events: none;
+}
+.opp.turn .avatar, .me-info.turn .avatar { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--red), 0 4px 10px rgba(168, 41, 31, .35); }
+.opp .cnt { border-color: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.opp .mini i { box-shadow: 0 1px 2px rgba(70,50,20,.4); }
+.bubble { border: 1px solid rgba(70,50,20,.35); box-shadow: var(--lift-sm); background-image: var(--grain), linear-gradient(#fdf9f0, #f3ead6); }
+.suit-badge { border: 1px solid rgba(70,50,20,.4); box-shadow: var(--lift); background-image: var(--grain), radial-gradient(circle at 40% 35%, #fffaf0, #efe3c6); }
+.deck .card, .pile .card { box-shadow: 0 1px 1px rgba(70,50,20,.25), 0 3px 8px rgba(70,50,20,.2); }
+.hand .card { box-shadow: 0 1px 1px rgba(70,50,20,.25), 0 4px 10px rgba(70,50,20,.22); }
+.hand .card.playable { box-shadow: 0 0 0 2.5px var(--red), 0 6px 14px rgba(70,50,20,.25); }
+.flyer.airborne { box-shadow: 0 16px 30px rgba(70, 50, 20, .35), 0 4px 8px rgba(70, 50, 20, .2); }
+.puff { border-color: rgba(110, 85, 40, .35); }
+.last-banner { border: 0; border-radius: 3px; box-shadow: var(--lift); background-image: var(--grain), linear-gradient(180deg, #bd3a2d, #97241a); }
+
+/* ---------- модалки: лист ---------- */
+.sheet { border: 0; border-radius: 6px 6px 0 0; background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f3ead6); box-shadow: 0 -2px 4px rgba(70,50,20,.15), 0 -12px 30px rgba(70,50,20,.2); }
+.suit-btn { border: 1px solid rgba(70,50,20,.35); border-radius: 8px; box-shadow: var(--edge), var(--lift); background-image: var(--grain), linear-gradient(#fffcf5, #f2e9d6); }
+.suit-btn:active { transform: translateY(2px); box-shadow: inset 0 2px 4px rgba(70,50,20,.2); }
+.toast { border-radius: 4px; background: #2f261c; box-shadow: var(--lift); }
+
+/* ---------- настройки / достижения ---------- */
+.sw { border: 1px solid rgba(70,50,20,.4); box-shadow: inset 0 1px 3px rgba(70,50,20,.25); }
+.sw::after { border: 1px solid rgba(70,50,20,.4); box-shadow: 0 1px 3px rgba(70,50,20,.35); }
+.back-opt i { outline: 0; box-shadow: var(--lift-sm); }
+.back-opt.sel i { outline: 2px solid var(--ink); box-shadow: var(--lift); }
+.stat-box { border: 0; border-radius: 4px; box-shadow: var(--lift); background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f3ead6); }
+.ach { border: 1.5px dashed rgba(70,50,20,.3); border-radius: 4px; }
+.ach.got { border: 0; box-shadow: var(--lift); background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f3ead6); }
+.ach-toast { border: 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(70,50,20,.2), 0 14px 30px rgba(70,50,20,.3); background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f3ead6); }
+.chat-panel { border: 0; border-radius: 6px; box-shadow: 0 2px 4px rgba(70,50,20,.2), 0 14px 30px rgba(70,50,20,.3); background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f3ead6); }
+.chat-panel .phrase { border: 1px solid rgba(70,50,20,.3); box-shadow: var(--lift-sm); }
+.chat-bubble { border: 1px solid rgba(70,50,20,.35); box-shadow: var(--lift-sm); }
+.chat-bubble.big { border: 0; box-shadow: none; filter: drop-shadow(0 2px 3px rgba(70,50,20,.35)); }
+.play-btn { margin-top: 0; }
+
+/* лайт-версия: без фактуры и мягких теней */
+body.lite { background-image: none; }
+body.lite .table-center::before, body.lite .panel::before, body.lite .room-code-box::before { display: none; }
+body.lite .mode-card { background-image: none; }
