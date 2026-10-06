@@ -15,37 +15,33 @@
 
   <main id="app">
     <!-- Главный экран -->
-    <section class="screen active" id="screen-home">
+    <section class="screen tab-screen active" id="screen-home">
       <div class="home-top">
-        <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span id="me-name">…</span></div>
-        <div class="top-right"><div class="conn" id="conn" title="Соединение"></div><button class="icon-btn gear" data-go="settings" aria-label="Настройки">⚙️</button></div>
+        <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span class="me-text"><b id="me-name">…</b><small id="me-sub">новичок</small></span></div>
+        <div class="conn" id="conn" title="Соединение"></div>
       </div>
-      <div class="logo">
+      <div class="hero">
         <div class="logo-fan" id="logo-fan"></div>
         <h1>108</h1>
-        <p class="tagline">Карточная игра · 36 карт</p>
       </div>
-      <div class="menu">
-        <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
-        <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
-        <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
-        <div class="menu-row">
-          <button class="btn btn-secondary btn-sm" data-go="achievements">🏅 Достижения</button>
-          <button class="btn btn-secondary btn-sm" data-go="settings">⚙️ Настройки</button>
-        </div>
-        <button class="btn btn-link" data-modal="rules">📖 Правила</button>
+
+      <div class="sect"><h3>Быстрая игра</h3><span id="online-count"></span></div>
+      <div class="mode-tiles">
+        <button class="mode-tile" data-queue="duel"><span class="mt-ico">⚔️</span><b>Дуэль</b><small>1 на 1</small><span class="stat" data-stat="duel"></span></button>
+        <button class="mode-tile" data-queue="trio"><span class="mt-ico">🃏</span><b>Трое</b><small>3 игрока</small><span class="stat" data-stat="trio"></span></button>
+        <button class="mode-tile" data-queue="party"><span class="mt-ico">🎉</span><b>Компания</b><small>4–6 игроков</small><span class="stat" data-stat="party"></span></button>
+      </div>
+
+      <div class="duo-tiles">
+        <button class="big-tile" data-go="friends"><span class="bt-ico">🪑</span><span><b>Свой стол</b><small>Позови друзей по коду</small></span></button>
+        <button class="big-tile" data-go="practice"><span class="bt-ico">🤖</span><span><b>Тренировка</b><small>Игра с ботами</small></span></button>
       </div>
     </section>
 
-    <!-- Выбор количества игроков для матчмейкинга -->
-    <section class="screen" id="screen-mode">
-      <header class="bar"><button class="back" data-back>‹</button><h2>Поиск игры</h2></header>
-      <div class="modes">
-        <button class="mode-card" data-queue="duel"><b>Дуэль</b><span class="ppl">1 на 1</span><span class="stat" data-stat="duel"></span></button>
-        <button class="mode-card" data-queue="trio"><b>Трое</b><span class="ppl">3 игрока</span><span class="stat" data-stat="trio"></span></button>
-        <button class="mode-card" data-queue="party"><b>Компания</b><span class="ppl">4–6 игроков</span><span class="stat" data-stat="party"></span></button>
-      </div>
-      <p class="hint center" id="online-count"></p>
+    <!-- Правила (вкладка) -->
+    <section class="screen tab-screen" id="screen-rules">
+      <header class="bar"><h2>Правила</h2></header>
+      <div class="panel rules" id="rules-body"></div>
     </section>
 
     <!-- Очередь -->
@@ -107,7 +103,7 @@
     </section>
 
     <!-- Настройки -->
-    <section class="screen" id="screen-settings">
+    <section class="screen tab-screen" id="screen-settings">
       <header class="bar"><button class="back" data-back>‹</button><h2>Настройки</h2></header>
       <div class="panel settings">
         <label class="opt"><span><b>Звук</b><small>Шелест карт, удары, мелодии</small></span><input type="checkbox" data-set="sound"><i class="sw"></i></label>
@@ -124,7 +120,7 @@
     </section>
 
     <!-- Достижения -->
-    <section class="screen" id="screen-achievements">
+    <section class="screen tab-screen" id="screen-achievements">
       <header class="bar"><button class="back" data-back>‹</button><h2>Достижения</h2></header>
       <div class="stats-row" id="stats-row"></div>
       <ul class="ach-list" id="ach-list"></ul>
@@ -161,6 +157,13 @@
       </div>
     </section>
   </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="home" class="on"><i>🏠</i><span>Игра</span></button>
+    <button data-tab="achievements"><i>🏅</i><span>Награды</span></button>
+    <button data-tab="rules"><i>📖</i><span>Правила</span></button>
+    <button data-tab="settings"><i>⚙️</i><span>Настройки</span></button>
+  </nav>
 
   <!-- Модальные окна -->
   <div class="modal" id="modal-suit">

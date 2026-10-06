@@ -14,7 +14,11 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ALLOW_GUESTS = process.env.ALLOW_GUESTS === '1' || !BOT_TOKEN;
 
 const app = express();
-app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
+// Без долгого кэша: Telegram иначе показывает старую версию игры после обновлений
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  etag: true,
+  setHeaders: res => res.setHeader('Cache-Control', 'no-cache'),
+}));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/config', (_req, res) => res.json({
   botUsername: botInfo?.username || null,

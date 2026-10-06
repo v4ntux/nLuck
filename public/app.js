@@ -111,16 +111,24 @@ function onMessage(m) {
 }
 
 // ---------- навигация ----------
+const TABS = ['home', 'achievements', 'rules', 'settings'];
+const inLiveGame = () => !!S.game && S.game.phase !== 'gameOver' && !!S.room;
 function show(name, { push = true } = {}) {
   if (S.screen === name) return;
-  if (push && S.screen && !['queue', 'game', 'room'].includes(S.screen)) S.history.push(S.screen);
+  // вкладки нижней панели — без истории; из игры настройки открываются с кнопкой «назад»
+  const tabMode = TABS.includes(name) && !inLiveGame();
+  if (tabMode) S.history = [];
+  else if (push && S.screen && !['queue', 'game', 'room'].includes(S.screen)) S.history.push(S.screen);
   S.screen = name;
   $$('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
-  const canBack = !['home', 'game', 'queue'].includes(name);
+  document.body.classList.toggle('has-tabs', tabMode);
+  $$('#tabbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  const canBack = !tabMode && !['game', 'queue'].includes(name);
   if (tg?.BackButton) canBack ? tg.BackButton.show() : tg.BackButton.hide();
 }
 function goBack() {
   if (S.screen === 'room') return leaveRoom();
+  if (inLiveGame() && S.screen !== 'game') return show('game', { push: false });
   if (S.screen === 'queue') return send({ type: 'queue_cancel' });
   show(S.history.pop() || 'home', { push: false });
 }
@@ -204,8 +212,29 @@ function showAch() {
 function checkGoals() {
   for (const a of ACHIEVEMENTS) if (a.goal) { const [c, m] = a.goal(progress.stats); if (c >= m) unlock(a.id); }
 }
-loadProgress().then(() => { checkGoals(); if (S.screen === 'achievements') renderAchievements(); });
-document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-card, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
+function renderMeSub() {
+  const st = progress.stats;
+  const done = ACHIEVEMENTS.filter(a => progress.unlocked[a.id]).length;
+  $('#me-sub').textContent = st.games ? `🏆 ${st.wins} · 🏅 ${done}/${ACHIEVEMENTS.length}` : 'новичок';
+}
+function openTab(name) {
+  if (name === 'settings') renderSettings();
+  if (name === 'achievements') renderAchievements();
+  if (name === 'home') renderMeSub();
+  show(name);
+}
+$$('#tabbar [data-tab]').forEach(b => b.addEventListener('click', () => { haptic(); sfx.click(); openTab(b.dataset.tab); }));
+// правила во вкладке — тот же текст, что в окне правил
+{
+  const src = $('#modal-rules .sheet').cloneNode(true);
+  src.querySelector('h3')?.remove();
+  src.querySelector('[data-close]')?.remove();
+  $('#rules-body').innerHTML = src.innerHTML;
+}
+document.body.classList.add('has-tabs');
+
+loadProgress().then(() => { checkGoals(); renderMeSub(); if (S.screen === 'achievements') renderAchievements(); });
+document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-tile, .big-tile, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
 
 $$('[data-go]').forEach(b => b.addEventListener('click', () => {
   haptic();
@@ -242,6 +271,7 @@ function avatar(p, cls = 'avatar') {
 // ---------- главный экран ----------
 function renderMe() {
   $('#me-name').textContent = S.me.name;
+  renderMeSub();
   $('#me-avatar').replaceWith(Object.assign(avatar(S.me), { id: 'me-avatar' }));
 }
 (function logoFan() {
