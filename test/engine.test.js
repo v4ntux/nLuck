@@ -236,3 +236,22 @@ test('вышел шестёркой, следующий взял — раунд 
   assert.equal(g.phase, 'roundOver');
   assert.equal(g.roundResult.winnerId, 'a');
 });
+
+test('дама — в любой момент: на 8 и после добора, но не против штрафа 6/7', () => {
+  const g = setup();
+  g.discard = [c('9', 'spades')]; g.suit = 'spades';
+  g.players[0].hand = [c('8', 'spades'), c('Q', 'hearts'), c('10', 'clubs')];
+  g.play('a', '8-spades');
+  g.play('a', 'Q-hearts', 'clubs');           // дама кроет восьмёрку
+  assert.equal(g.current.id, 'b');
+  assert.equal(g.suit, 'clubs');
+  g.players[1].hand = [c('Q', 'diamonds'), c('7', 'hearts')];
+  g.deck.push(c('J', 'hearts'));
+  g.draw('b');
+  g.play('b', 'Q-diamonds', 'hearts');        // после добора — тоже можно
+  assert.equal(g.current.id, 'c');
+  g.players[2].hand = [c('6', 'hearts'), c('9', 'hearts')];
+  g.play('c', '6-hearts');
+  g.players[0].hand = [c('Q', 'spades'), c('9', 'clubs')];
+  assert.throws(() => g.play('a', 'Q-spades')); // штраф за 6 — даму нельзя
+});

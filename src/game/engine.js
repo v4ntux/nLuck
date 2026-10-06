@@ -95,9 +95,10 @@ export class Game {
   canPlay(card) {
     // На 6/7 можно ответить только такой же картой — перевести штраф дальше
     if (this.pending) return card.rank === this.pending.rank;
+    // Дама — в любой момент (кроме штрафа за 6/7/K♠, когда надо брать карты)
+    if (this.rules.queenIsWild && card.rank === 'Q') return true;
     // После восьмёрки её надо покрыть: восьмёркой или картой той же масти
     if (this.cover) return card.rank === '8' || card.suit === this.cover;
-    if (this.rules.queenIsWild && card.rank === 'Q') return true;
     return card.suit === this.suit || card.rank === this.top.rank;
   }
 
@@ -113,7 +114,7 @@ export class Game {
     if (idx < 0) throw new GameError('Такой карты нет');
     const card = p.hand[idx];
     if (!this.canPlay(card)) throw new GameError('Так нельзя');
-    if (!this.cover && this.hasDrawn && this.drawnCardId && this.drawnCardId !== card.id)
+    if (!this.cover && card.rank !== 'Q' && this.hasDrawn && this.drawnCardId && this.drawnCardId !== card.id)
       throw new GameError('После добора можно положить только взятую карту');
 
     p.hand.splice(idx, 1);

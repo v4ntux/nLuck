@@ -4,7 +4,7 @@ import { SUITS, cardPoints } from './rules.js';
 export function chooseAction(game, playerId) {
   const me = game.player(playerId);
   let playable = me.hand.filter(c => game.canPlay(c));
-  if (!game.cover && game.hasDrawn && game.drawnCardId) playable = playable.filter(c => c.id === game.drawnCardId);
+  if (!game.cover && game.hasDrawn && game.drawnCardId) playable = playable.filter(c => c.id === game.drawnCardId || c.rank === 'Q');
 
   if (game.pending) {
     // перевести, если есть чем, иначе взять штраф

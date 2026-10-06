@@ -453,7 +453,7 @@ function drawCard() {
 function playCard(card) {
   if (!myTurn()) return;
   S.lastTried = card.id;
-  if (card.rank === 'Q' && !S.game.cover && !S.game.pending) { S.pendingQueen = card.id; return openModal('suit'); }
+  if (card.rank === 'Q' && !S.game.pending) { S.pendingQueen = card.id; return openModal('suit'); }
   haptic('medium');
   startThrow(card);
   send({ type: 'play', cardId: card.id });
@@ -644,9 +644,11 @@ const SUIT_ORDER = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
 const RANK_ORDER = { '6': 0, '7': 1, '8': 2, '9': 3, '10': 4, J: 5, Q: 6, K: 7, A: 8 };
 
 function hintPlayable(c, g) {
+  if (g.pending) return c.rank === g.pending.rank;
+  if (c.rank === 'Q') return true;
   if (g.cover) return c.rank === '8' || c.suit === g.cover;
   if (g.hasDrawn && g.drawnCardId && c.id !== g.drawnCardId) return false;
-  return c.rank === 'Q' || c.suit === g.suit || c.rank === g.top.rank;
+  return c.suit === g.suit || c.rank === g.top.rank;
 }
 
 function renderHint(g) {
