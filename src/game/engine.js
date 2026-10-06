@@ -54,7 +54,7 @@ export class Game {
   emit(ev) {
     this.lastEvent = { ...ev, seq: ++this.eventSeq };
     this.log.push(this.lastEvent);
-    if (this.log.length > 50) this.log.shift();
+    if (this.log.length > 100) this.log.shift();
   }
 
   startRound() {
@@ -70,6 +70,7 @@ export class Game {
     this.turn = this.nextIndex(this.dealer);
     this.hasDrawn = false;
     this.drawnCardId = null;
+    this.cover = null;
     this.turnStartedAt = Date.now();
     this.roundResult = null;
     this.phase = 'playing';
@@ -87,7 +88,11 @@ export class Game {
     return this.deck.pop();
   }
 
+  canDraw() { return this.deck.length > 0 || this.discard.length > 1; }
+
   canPlay(card) {
+    // После восьмёрки её надо покрыть: восьмёркой или картой той же масти
+    if (this.cover) return card.rank === '8' || card.suit === this.cover;
     if (this.rules.queenIsWild && card.rank === 'Q') return true;
     return card.suit === this.suit || card.rank === this.top.rank;
   }
@@ -103,9 +108,9 @@ export class Game {
     const idx = p.hand.findIndex(c => c.id === cardId);
     if (idx < 0) throw new GameError('Такой карты нет');
     const card = p.hand[idx];
-    if (!this.canPlay(card)) throw new GameError('Эту карту нельзя положить');
-    if (this.hasDrawn && this.drawnCardId && this.drawnCardId !== card.id)
-      throw new GameError('После добора можно сыграть только взятую карту');
+    if (!this.canPlay(card)) throw new GameError('Так нельзя');
+    if (!this.cover && this.hasDrawn && this.drawnCardId && this.drawnCardId !== card.id)
+      throw new GameError('После добора можно положить только взятую карту');
 
     p.hand.splice(idx, 1);
     this.discard.push(card);
@@ -115,6 +120,15 @@ export class Game {
       this.suit = card.suit;
     }
     this.emit({ type: 'play', playerId, card, suit: this.suit });
+
+    // Восьмёрка: тот же игрок обязан покрыть
+    if (card.rank === '8' && this.rules.eightMustCover) {
+      this.cover = card.suit;
+      this.hasDrawn = false;
+      this.drawnCardId = null;
+      return;
+    }
+    this.cover = null;
 
     // Эффект на следующего игрока
     let next = this.nextIndex(this.turn);
@@ -127,30 +141,43 @@ export class Game {
 
     if (p.hand.length === 0) return this.endRound(p, card);
 
-    if (drawN > 0 || (card.rank === 'A' && this.rules.aceSkips)) {
+    const aceSkip = card.rank === 'A' && this.rules.skipAces.includes(card.suit);
+    if (drawN > 0 || aceSkip) {
       this.emit({ type: 'skip', playerId: this.players[next].id });
-      next = this.nextIndex(next);
+      next = this.nextIndex(next); // при игре 1 на 1 ход возвращается к себе
     }
     this.advance(next);
   }
 
   draw(playerId) {
     this.assertTurn(playerId);
+    if (this.cover) {
+      // Покрыть восьмёрку нечем — тянем по одной, пока не найдём
+      const c = this.drawCard();
+      if (!c) throw new GameError('Колода пуста — пас');
+      this.current.hand.push(c);
+      this.emit({ type: 'draw', playerId, count: 1 });
+      return c;
+    }
     if (this.hasDrawn) throw new GameError('Вы уже взяли карту');
     const c = this.drawCard();
     this.hasDrawn = true;
-    if (!c) { this.emit({ type: 'draw', playerId, count: 0 }); return this.advance(this.nextIndex(this.turn)); }
+    if (!c) { this.emit({ type: 'draw', playerId, count: 0 }); return null; }
     this.current.hand.push(c);
     this.drawnCardId = c.id;
     this.emit({ type: 'draw', playerId, count: 1 });
-    // Если взятой картой ходить нельзя — ход переходит сам
-    if (!this.canPlay(c)) this.advance(this.nextIndex(this.turn));
     return c;
+  }
+
+  canPass() {
+    if (this.cover) return !this.canDraw() && !this.current.hand.some(c => this.canPlay(c));
+    return this.hasDrawn;
   }
 
   pass(playerId) {
     this.assertTurn(playerId);
-    if (!this.hasDrawn) throw new GameError('Сначала возьмите карту');
+    if (!this.canPass()) throw new GameError(this.cover ? 'Надо покрыть восьмёрку' : 'Сначала возьмите карту');
+    this.cover = null;
     this.emit({ type: 'pass', playerId });
     this.advance(this.nextIndex(this.turn));
   }
@@ -221,10 +248,11 @@ export class Game {
       suit: this.suit,
       turn: this.current?.id,
       hasDrawn: this.current?.id === forId ? this.hasDrawn : false,
+      cover: this.cover,
+      canPass: this.phase === 'playing' && this.current?.id === forId ? this.canPass() : false,
       drawnCardId: this.current?.id === forId ? this.drawnCardId : null,
       dealer: this.players[this.dealer]?.id,
       turnStartedAt: this.turnStartedAt,
-      turnSeconds: this.rules.turnSeconds,
       target: this.rules.targetScore,
       players: this.players.map(p => ({
         id: p.id, name: p.name, score: p.score, out: p.out, left: !!p.left,
@@ -232,6 +260,7 @@ export class Game {
       })),
       hand: this.players.find(p => p.id === forId)?.hand ?? [],
       lastEvent: this.lastEvent,
+      seq: this.eventSeq,
       roundResult: this.roundResult,
       winnerId: this.winnerId ?? null,
     };

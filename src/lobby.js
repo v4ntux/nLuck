@@ -22,7 +22,7 @@ export class Lobby {
     this.users.set(u.id, u);
     this.send(u, { type: 'welcome', me: { id: u.id, name: u.name, photo: u.photo } });
     const room = u.roomCode && this.rooms.get(u.roomCode);
-    if (room) { this.sendRoom(room); if (room.game) this.sendGame(room, u.id); }
+    if (room) { this.sendRoom(room); if (room.game) { this.sendGame(room, u.id); this.schedule(room); } }
     else u.roomCode = null;
     return u;
   }
@@ -266,9 +266,9 @@ export class Lobby {
     const seat = room.seats.find(s => s.id === cur.id);
     const online = seat && !seat.bot && this.users.get(seat.id)?.ws;
     let delay;
-    if (!seat || seat.bot) delay = 700 + Math.random() * 900;
-    else if (!online) delay = 2500;
-    else delay = Math.max(0, g.turnStartedAt + g.rules.turnSeconds * 1000 - Date.now());
+    if (!seat || seat.bot) delay = 650 + Math.random() * 450;
+    else if (!online) delay = g.rules.afkSeconds * 1000; // за отключившегося — только через минуту
+    else return; // живой игрок ходит сам, никаких авто-ходов
     room.timer = setTimeout(() => {
       if (room.game !== g || g.phase !== 'playing' || g.current !== cur) return;
       try { applyAction(g, cur.id, chooseAction(g, cur.id)); } catch (e) { console.error('auto move', e); g.advance(g.nextIndex(g.turn)); }
@@ -308,15 +308,20 @@ export class Lobby {
     for (const s of room.seats) if (!s.bot) this.send(this.users.get(s.id), { type: 'room', room: info });
   }
 
-  sendGame(room, userId) {
+  sendGame(room, userId, events = []) {
     const view = room.game.view(userId);
+    view.events = events;
     view.seats = this.roomInfo(room).seats;
     view.now = Date.now();
     this.send(this.users.get(userId), { type: 'game', game: view });
   }
 
   broadcastGame(room) {
-    for (const s of room.seats) if (!s.bot) this.sendGame(room, s.id);
+    const g = room.game;
+    if (room.sentGame !== g) { room.sentGame = g; room.sentSeq = 0; }
+    const events = g.log.filter(e => e.seq > room.sentSeq);
+    room.sentSeq = g.eventSeq;
+    for (const s of room.seats) if (!s.bot) this.sendGame(room, s.id, events);
   }
 }
 

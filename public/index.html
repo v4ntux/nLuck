@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>108 — карточная игра</title>
-  <meta name="theme-color" content="#0b3d2a">
+  <meta name="theme-color" content="#e9dfc8">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@700;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&family=Playfair+Display:wght@700;900&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -114,7 +114,6 @@
           <div class="pile" id="pile"></div>
           <div class="suit-badge" id="suit-badge"></div>
         </div>
-        <div class="status" id="status"></div>
         <div class="me-row">
           <div class="me-info" id="me-info"></div>
           <div class="actions">
@@ -122,7 +121,6 @@
             <button class="btn btn-act" id="btn-pass">Пас</button>
           </div>
         </div>
-        <div class="turn-bar"><div id="turn-progress"></div></div>
         <div class="hand" id="hand"></div>
       </div>
     </section>
@@ -181,12 +179,13 @@
     <div class="sheet rules">
       <h3>Правила «108»</h3>
       <p>Колода — <b>36 карт</b>, от шестёрки до туза. Каждому раздаётся по 5 карт, одна открывается на стол.</p>
-      <p>Ходи картой <b>той же масти</b> или <b>того же достоинства</b>. Нечем ходить — бери одну карту из колоды; если она подходит, её можно сразу положить, иначе ход переходит дальше.</p>
+      <p>Ходи картой <b>той же масти</b> или <b>того же достоинства</b>. Нечем ходить — бери одну карту из колоды; если она подходит, её можно сразу положить, иначе жми «Пас».</p>
       <h4>Особые карты</h4>
       <ul>
         <li><b>6</b> — следующий игрок берёт <b>1 карту</b> и пропускает ход</li>
         <li><b>7</b> — следующий игрок берёт <b>2 карты</b> и пропускает ход</li>
-        <li><b>Туз</b> — следующий пропускает ход</li>
+        <li><b>8</b> — надо сразу покрыть: восьмёркой или картой той же масти (на 8♠ — любые ♠). Нечем — тянешь из колоды, пока не покроешь</li>
+        <li><b>Туз ♠</b> — следующий пропускает ход (вдвоём — ходишь ещё раз)</li>
         <li><b>Дама</b> — кладётся на любую карту и заказывает масть</li>
         <li><b>9</b> и <b>10</b> — обычные карты без эффектов</li>
       </ul>

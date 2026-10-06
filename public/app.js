@@ -7,6 +7,31 @@ const inTg = !!tg?.initData;
 
 document.getElementById('sprite').innerHTML = SPRITE;
 
+// Фактура бумаги: генерируем один раз маленькую текстуру и используем как фон везде
+(function paperGrain() {
+  try {
+    const n = 140, c = document.createElement('canvas');
+    c.width = c.height = n;
+    const x = c.getContext('2d');
+    const img = x.createImageData(n, n);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random();
+      img.data[i] = 90; img.data[i + 1] = 70; img.data[i + 2] = 40;
+      img.data[i + 3] = v > 0.985 ? 40 : v * 14;
+    }
+    x.putImageData(img, 0, 0);
+    x.strokeStyle = 'rgba(90,70,40,.07)';
+    for (let k = 0; k < 18; k++) { // волокна
+      x.beginPath();
+      const sx = Math.random() * n, sy = Math.random() * n;
+      x.moveTo(sx, sy);
+      x.quadraticCurveTo(sx + Math.random() * 20 - 10, sy + Math.random() * 20 - 10, sx + Math.random() * 30 - 15, sy + Math.random() * 30 - 15);
+      x.stroke();
+    }
+    document.documentElement.style.setProperty('--grain', `url(${c.toDataURL()})`);
+  } catch {}
+})();
+
 const S = {
   me: null,
   room: null,
@@ -19,14 +44,13 @@ const S = {
   clockSkew: 0,
   pendingQueen: null,
   pile: [],
-  prevHandIds: new Set(),
 };
 
 // ---------- Telegram ----------
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setHeaderColor('#0b3d2a'); tg.setBackgroundColor('#083524'); } catch {}
+  try { tg.setHeaderColor('#efe6d2'); tg.setBackgroundColor('#efe6d2'); } catch {}
   try { tg.disableVerticalSwipes?.(); } catch {}
   tg.BackButton?.onClick(goBack);
 }
@@ -74,7 +98,7 @@ connect();
 function onMessage(m) {
   switch (m.type) {
     case 'welcome': S.me = m.me; renderMe(); break;
-    case 'error': toast(m.message); haptic('error'); break;
+    case 'error': toast(m.message); haptic('error'); shakeCard(S.lastTried); S.lastTried = null; break;
     case 'queue': onQueue(m); break;
     case 'room': onRoom(m.room); break;
     case 'game': onGame(m.game); break;
@@ -206,7 +230,7 @@ function onRoom(room) {
   S.room = room;
   leaveQueueUi();
   if (!room) {
-    S.game = null; S.lastSeq = 0; S.pile = [];
+    S.game = null; resetTable(); S.initialized = false;
     $$('.modal').forEach(m => m.classList.remove('open'));
     if (['room', 'game', 'queue'].includes(S.screen)) home();
     return;
@@ -267,64 +291,75 @@ $$('#modal-suit [data-suit]').forEach(b => b.addEventListener('click', () => {
 
 function myTurn() { return S.game?.phase === 'playing' && S.game.turn === S.me?.id; }
 function drawCard() {
-  if (!myTurn() || S.game.hasDrawn) return;
+  if (!myTurn()) return;
   haptic();
   send({ type: 'draw' });
 }
-function canPlay(card) {
-  const g = S.game;
-  if (!myTurn()) return false;
-  if (g.drawnCardId && card.id !== g.drawnCardId) return false;
-  return card.rank === 'Q' || card.suit === g.suit || card.rank === g.top.rank;
-}
 function playCard(card) {
-  if (!myTurn()) return toast('Сейчас не ваш ход');
-  if (!canPlay(card)) { haptic('error'); return toast('Эту карту сюда нельзя'); }
-  if (card.rank === 'Q') { S.pendingQueen = card.id; return openModal('suit'); }
+  if (!myTurn()) return;
+  S.lastTried = card.id;
+  if (card.rank === 'Q' && !S.game.cover) { S.pendingQueen = card.id; return openModal('suit'); }
   haptic('medium');
   send({ type: 'play', cardId: card.id });
+}
+function shakeCard(id) {
+  const el = id && S.handEls.get(id);
+  if (!el) return;
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
 }
 
 const nameOf = id => S.game?.players.find(p => p.id === id)?.name || '?';
 const seatOf = id => S.game?.seats?.find(s => s.id === id) || S.game?.players.find(p => p.id === id);
 const cardText = c => `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`;
+const rectOf = el => el?.getBoundingClientRect();
+const centerRect = (r, w) => r && ({ left: r.left + r.width / 2 - w / 2, top: r.top + r.height / 2 - (w * 1.4) / 2, width: w, height: w * 1.4 });
+
+S.handEls = new Map();
+S.pileKey = null;
+
+// рубашка для колоды — один раз
+(function buildDeck() {
+  const deck = $('#deck');
+  for (let i = 0; i < 3; i++) {
+    const c = cardEl(null, { back: true });
+    c.style.transform = `translate(${-i * 2}px, ${-i * 2}px)`;
+    deck.insertBefore(c, deck.firstChild);
+  }
+})();
 
 function onGame(g) {
   const prev = S.game;
-  S.clockSkew = g.now ? Date.now() - g.now : 0;
-  // Запоминаем положение элементов до перерисовки — для анимаций
-  const rects = captureRects();
+  const newRound = !prev || prev.round !== g.round;
+  // положение карт до перерисовки — для анимаций
+  const before = { hand: new Map(), opp: {} };
+  for (const [id, el] of S.handEls) before.hand.set(id, rectOf(el));
+  $$('#opponents .opp').forEach(el => (before.opp[el.dataset.id] = rectOf(el.querySelector('.ava-wrap'))));
+
+  const dealing = (g.events || []).some(e => e.type === 'roundStart');
   S.game = g;
-  if (!prev || prev.round !== g.round) { S.pile = []; S.prevHandIds = new Set(); }
-  if (!S.pile.length || S.pile[S.pile.length - 1].id !== g.top.id) {
-    S.pile.push({ ...g.top, rot: (Math.random() - 0.5) * 24, dx: (Math.random() - 0.5) * 10 });
-    if (S.pile.length > 4) S.pile.shift();
-  }
   show('game');
-  renderGame();
-  const ev = g.lastEvent;
-  if (ev && ev.seq !== S.lastSeq) {
-    S.lastSeq = ev.seq;
-    if (prev) animateEvent(ev, rects, prev);
-  }
+  if (newRound) resetTable();
+  if (dealing) S.initialized = true;
+  renderTable(g, dealing);
+  animateEvents(g.events || [], before, !prev && !dealing);
+
   if (g.phase === 'playing') { closeModal('round'); closeModal('over'); }
-  if (g.phase === 'roundOver') renderRound();
-  if (g.phase === 'gameOver') { closeModal('round'); renderOver(); }
+  if (g.phase === 'roundOver') setTimeout(renderRound, 700);
+  if (g.phase === 'gameOver') { closeModal('round'); setTimeout(renderOver, 700); }
 }
 
-function captureRects() {
-  const r = { opp: {}, hand: {} };
-  r.pile = $('#pile').getBoundingClientRect();
-  r.deck = $('#deck').getBoundingClientRect();
-  r.handBox = $('#hand').getBoundingClientRect();
-  $$('#opponents .opp').forEach(el => (r.opp[el.dataset.id] = el.querySelector('.ava-wrap').getBoundingClientRect()));
-  $$('#hand .card').forEach(el => (r.hand[el.dataset.id] = el.getBoundingClientRect()));
-  return r;
+function resetTable() {
+  for (const el of S.handEls.values()) el.remove();
+  S.handEls.clear();
+  $('#pile').innerHTML = '';
+  S.pileKey = null;
 }
 
-function renderGame() {
-  const g = S.game;
-  $('#round-label').textContent = `Раунд ${g.round} · колода ${g.deckCount}`;
+function renderTable(g, deal) {
+  $('#round-label').textContent = `Раунд ${g.round}`;
+  const mine = myTurn();
 
   // соперники — по кругу, начиная со следующего после меня
   const ps = g.players;
@@ -340,185 +375,169 @@ function renderGame() {
     const wrap = document.createElement('div');
     wrap.className = 'ava-wrap';
     wrap.appendChild(avatar({ ...seat, name: p.name, bot: seat?.bot }));
-    if (p.id === g.turn && g.phase === 'playing') wrap.insertAdjacentHTML('beforeend', '<svg class="ring" viewBox="0 0 62 62"><circle cx="31" cy="31" r="28" pathLength="100" stroke-dasharray="100 100"/></svg>');
     if (!p.out) wrap.insertAdjacentHTML('beforeend', `<span class="cnt">${p.cards}</span>`);
-    if (seat && seat.online === false && !seat.bot) wrap.insertAdjacentHTML('beforeend', '<span class="off-badge" title="не в сети">📵</span>');
+    if (seat && seat.online === false && !seat.bot) wrap.insertAdjacentHTML('beforeend', '<span class="off-badge">📵</span>');
     el.appendChild(wrap);
-    el.insertAdjacentHTML('beforeend', `<div class="nm">${esc(p.name)}</div><div class="sc">${p.left ? 'вышел' : p.out ? 'выбыл' : p.score + ' очк.'}</div>`);
-    const mini = document.createElement('div');
-    mini.className = 'mini';
-    for (let i = 0; i < Math.min(p.cards, 7) && !p.out; i++) mini.appendChild(cardEl(null, { back: true }));
-    el.appendChild(mini);
+    el.insertAdjacentHTML('beforeend', `<div class="nm">${esc(p.name)}</div><div class="sc">${p.left ? 'вышел' : p.out ? 'выбыл' : p.score}</div>`
+      + `<div class="mini">${p.out ? '' : '<i></i>'.repeat(Math.min(p.cards, 7))}</div>`);
     box.appendChild(el);
   }
 
-  // колода и сброс
-  const deck = $('#deck');
-  deck.querySelectorAll('.card').forEach(c => c.remove());
-  for (let i = 0; i < Math.min(3, Math.ceil(g.deckCount / 6)); i++) {
-    const c = cardEl(null, { back: true });
-    c.style.transform = `translate(${-i * 2}px, ${-i * 2}px)`;
-    deck.appendChild(c);
-  }
   $('#deck-count').textContent = g.deckCount;
-  deck.classList.toggle('can', myTurn() && !g.hasDrawn && !g.hand.some(canPlay));
 
-  const pile = $('#pile');
-  pile.innerHTML = '';
-  for (const c of S.pile) {
-    const el = cardEl(c);
-    el.style.transform = `translateX(${c.dx}px) rotate(${c.rot}deg)`;
-    pile.appendChild(el);
+  // сброс: добавляем только новую верхнюю карту
+  const key = `${g.top.id}:${g.discardCount}`;
+  if (key !== S.pileKey) {
+    S.pileKey = key;
+    const el = cardEl(g.top, { cls: 'pile-card' });
+    el.style.setProperty('--r', `${(Math.random() - 0.5) * 22}deg`);
+    el.style.setProperty('--x', `${(Math.random() - 0.5) * 12}px`);
+    $('#pile').appendChild(el);
+    while ($('#pile').children.length > 4) $('#pile').firstElementChild.remove();
   }
 
+  // заказанная дамой масть
   const badge = $('#suit-badge');
-  const changed = badge.dataset.suit !== g.suit;
-  badge.dataset.suit = g.suit;
-  badge.textContent = SUIT_SYMBOL[g.suit];
-  badge.title = SUIT_NAME[g.suit];
-  badge.className = 'suit-badge ' + (isRed(g.suit) ? 'red' : 'black') + (changed && g.top.rank === 'Q' ? ' changed' : '');
+  const ordered = g.top.rank === 'Q' && !g.cover;
+  badge.classList.toggle('show', ordered);
+  if (ordered && badge.dataset.suit !== g.suit) {
+    badge.dataset.suit = g.suit;
+    badge.textContent = SUIT_SYMBOL[g.suit];
+    badge.className = 'suit-badge show ' + (isRed(g.suit) ? 'red' : 'black');
+  }
+  if (!ordered) badge.dataset.suit = '';
 
-  // я
   const me = ps.find(p => p.id === S.me?.id);
   const info = $('#me-info');
+  info.classList.toggle('turn', mine);
   info.innerHTML = '';
   info.appendChild(avatar(S.me));
-  info.insertAdjacentHTML('beforeend', `<span>${esc(S.me?.name)}</span><span class="sc">${me ? me.score : 0}</span>`);
+  info.insertAdjacentHTML('beforeend', `<span class="nm">${esc(S.me?.name)}</span><span class="sc">${me ? me.score : 0}</span>`);
 
-  const st = $('#status');
-  const mine = myTurn();
-  st.classList.toggle('mine', mine);
-  if (g.phase !== 'playing') st.textContent = '';
-  else if (me?.out) st.textContent = 'Вы выбыли — наблюдаете';
-  else if (mine) st.textContent = g.hasDrawn ? 'Положите взятую карту или пас' : g.hand.some(canPlay) ? 'Ваш ход' : 'Нечем ходить — берите карту';
-  else st.textContent = `Ходит ${nameOf(g.turn)}…`;
+  $('#btn-draw').disabled = !mine || (!g.cover && g.hasDrawn);
+  $('#btn-pass').disabled = !mine || !g.canPass;
 
-  const drawBtn = $('#btn-draw'), passBtn = $('#btn-pass');
-  drawBtn.disabled = !mine || g.hasDrawn;
-  passBtn.disabled = !mine || !g.hasDrawn;
-  drawBtn.classList.toggle('hot', mine && !g.hasDrawn && !g.hand.some(canPlay));
-  passBtn.classList.toggle('hot', mine && g.hasDrawn);
-
-  renderHand();
+  renderHand(g, deal);
 }
 
 const SUIT_ORDER = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
 const RANK_ORDER = { '6': 0, '7': 1, '8': 2, '9': 3, '10': 4, J: 5, Q: 6, K: 7, A: 8 };
 
-function renderHand() {
-  const g = S.game;
+function renderHand(g, deal = false) {
   const hand = [...g.hand].sort((a, b) => SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit] || RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
   const box = $('#hand');
-  const mine = myTurn();
-  box.classList.toggle('my-turn', mine);
-  box.innerHTML = '';
+  const ids = new Set(hand.map(c => c.id));
+  for (const [id, el] of S.handEls) if (!ids.has(id)) { el.remove(); S.handEls.delete(id); }
+
   const n = hand.length;
   const W = box.clientWidth || 360;
   const cw = parseFloat(getComputedStyle(box).getPropertyValue('--card-w')) || 84;
   const step = n > 1 ? Math.min(cw * 0.62, (W - cw - 8) / (n - 1)) : 0;
   const angle = Math.min(5, 30 / Math.max(n, 1));
+  const hb = box.getBoundingClientRect();
+  const db = $('#deck').getBoundingClientRect();
+  // откуда вылетают новые карты — из колоды
+  const fromDeck = `translate(calc(-50% + ${db.left + db.width / 2 - (hb.left + hb.width / 2)}px), ${db.top + db.height / 2 - (hb.bottom - 14 - cw * 0.7)}px) rotate(-8deg) scale(${db.width / cw})`;
+  let newIdx = 0;
   hand.forEach((c, i) => {
     const off = i - (n - 1) / 2;
-    const playable = mine && canPlay(c);
-    const el = cardEl(c, { cls: (playable ? 'playable' : mine ? 'dim' : '') + (S.prevHandIds.has(c.id) ? '' : ' new') });
-    const y = off * off * 2 - (playable ? 14 : 0);
-    el.style.transform = `translateX(calc(-50% + ${off * step}px)) translateY(${y}px) rotate(${off * angle}deg)`;
+    const target = `translate(calc(-50% + ${off * step}px), ${off * off * 2}px) rotate(${off * angle}deg)`;
+    let el = S.handEls.get(c.id);
+    if (!el) {
+      el = cardEl(c, { cls: 'in-hand' });
+      el.addEventListener('click', () => playCard(c));
+      S.handEls.set(c.id, el);
+      box.appendChild(el);
+      if (S.initialized) {
+        el.style.transition = 'none';
+        el.style.transform = fromDeck;
+        el.classList.add('flip');
+        void el.offsetWidth;
+        el.style.transition = '';
+        el.style.transitionDelay = `${(deal ? newIdx * 90 : newIdx * 120) + (deal ? 250 : 0)}ms`;
+        el.style.animationDelay = el.style.transitionDelay;
+        newIdx++;
+      }
+    } else {
+      el.style.transitionDelay = '0ms';
+    }
     el.style.zIndex = i + 1;
-    el.style.animationDelay = `${Math.random() * 0.15}s`;
-    el.addEventListener('click', () => playCard(c));
-    box.appendChild(el);
+    el.style.transform = target;
   });
-  S.prevHandIds = new Set(hand.map(c => c.id));
+  S.initialized = true;
 }
 
 // ---------- анимации ----------
-function fly(el, from, to, { delay = 0, rotate = 0 } = {}) {
+function fly(el, from, to, { delay = 0, rotate = 0, dur = 420 } = {}) {
   if (!from || !to) return;
   el.classList.add('flyer');
-  el.style.width = from.width + 'px';
-  el.style.left = from.left + 'px';
-  el.style.top = from.top + 'px';
+  Object.assign(el.style, { width: from.width + 'px', left: from.left + 'px', top: from.top + 'px', transitionDuration: dur + 'ms' });
   el.style.setProperty('--card-w', from.width + 'px');
   document.body.appendChild(el);
-  const sx = to.width / from.width;
-  requestAnimationFrame(() => setTimeout(() => {
-    el.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${sx}) rotate(${rotate}deg)`;
-  }, delay));
-  setTimeout(() => el.remove(), 420 + delay);
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      el.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width}) rotate(${rotate}deg)`;
+    });
+  }, delay);
+  setTimeout(() => el.remove(), dur + delay + 40);
 }
-const centerRect = (r, w) => ({ left: r.left + r.width / 2 - w / 2, top: r.top + r.height / 2 - (w * 1.4) / 2, width: w, height: w * 1.4 });
 
-function animateEvent(ev, rects, prev) {
+function animateEvents(events, before, firstLoad) {
+  if (firstLoad) return;
   const g = S.game;
-  const pileNow = $('#pile').getBoundingClientRect();
-  if (ev.type === 'play') {
-    const isMe = ev.playerId === S.me?.id;
-    const from = isMe ? rects.hand[ev.card.id] : rects.opp[ev.playerId] && centerRect(rects.opp[ev.playerId], 40);
-    const topEl = $('#pile').lastElementChild;
-    if (from && topEl) {
-      topEl.style.opacity = 0;
-      fly(cardEl(ev.card), from, pileNow, { rotate: S.pile[S.pile.length - 1]?.rot || 0 });
-      setTimeout(() => (topEl.style.opacity = 1), 380);
+  let t = 0;
+  for (const ev of events) {
+    if (ev.type === 'roundStart') {
+      // раздача соперникам: рубашки летят из колоды
+      const db = rectOf($('#deck'));
+      g.players.filter(p => p.id !== S.me?.id && !p.out).forEach((p, k) => {
+        const to = centerRect(rectOf($(`#opponents .opp[data-id="${CSS.escape(p.id)}"] .ava-wrap`)), 26);
+        for (let i = 0; i < Math.min(p.cards, 5); i++) fly(cardEl(null, { back: true }), db, to, { delay: 250 + i * 90 + k * 30, dur: 380 });
+      });
+      haptic('light');
+    } else if (ev.type === 'play') {
+      const isMe = ev.playerId === S.me?.id;
+      const from = isMe ? before.hand.get(ev.card.id) : centerRect(before.opp[ev.playerId], 40);
+      const top = $('#pile').lastElementChild;
+      const to = rectOf($('#pile'));
+      if (from && to) {
+        const delay = t;
+        if (top) { top.style.visibility = 'hidden'; setTimeout(() => (top.style.visibility = ''), delay + 400); }
+        fly(cardEl(ev.card), from, to, { delay, rotate: (Math.random() - 0.5) * 20, dur: 400 });
+      }
+      if (ev.card.rank === 'Q' && ev.suit) bubble(ev.playerId, SUIT_SYMBOL[ev.suit], t);
+      setTimeout(() => haptic(isMe ? 'medium' : 'light'), t + 380);
+      t += 260;
+    } else if ((ev.type === 'draw' && ev.count) || ev.type === 'penalty') {
+      if (ev.playerId !== S.me?.id) {
+        const db = rectOf($('#deck'));
+        const to = centerRect(rectOf($(`#opponents .opp[data-id="${CSS.escape(ev.playerId)}"] .ava-wrap`)), 26);
+        for (let i = 0; i < (ev.count || 1); i++) fly(cardEl(null, { back: true }), db, to, { delay: t + i * 110, dur: 380 });
+      } else if (ev.type === 'penalty') haptic('warning');
+      if (ev.type === 'penalty') bubble(ev.playerId, `+${ev.count}`, t);
+      t += 150;
+    } else if (ev.type === 'skip') {
+      bubble(ev.playerId, '⏭', t);
+    } else if (ev.type === 'pass') {
+      bubble(ev.playerId, 'пас', t);
+    } else if (ev.type === 'reshuffle') {
+      $('#deck').classList.remove('shuffle-anim'); void $('#deck').offsetWidth; $('#deck').classList.add('shuffle-anim');
     }
-    haptic(isMe ? 'medium' : 'light');
-    if (ev.card.rank === 'Q' && ev.suit) bubble(ev.playerId, `Заказ: ${SUIT_SYMBOL[ev.suit]}`);
-  } else if (ev.type === 'draw' && ev.count) {
-    flyDraw(ev.playerId, 1, rects);
   }
-  // штраф/пропуск могли произойти в том же ходе — смотрим лог по изменению карт
-  for (const p of g.players) {
-    const before = prev.players.find(x => x.id === p.id);
-    const diff = before ? p.cards - before.cards : 0;
-    if (ev.type === 'play' && diff > 0) {
-      flyDraw(p.id, diff, rects, 250);
-      bubble(p.id, `+${diff} и пропуск`);
-      if (p.id === S.me?.id) haptic('warning');
-    }
-  }
-  if (ev.type === 'play' && ev.card.rank === 'A') {
-    const ps = g.players.filter(p => !p.out);
-    const i = ps.findIndex(p => p.id === ev.playerId);
-    if (i >= 0 && ps.length > 1) bubble(ps[(i + 1) % ps.length].id, 'Пропуск');
-  }
-  if (ev.type === 'pass') bubble(ev.playerId, 'Пас');
-  if (g.turn === S.me?.id && prev.turn !== S.me?.id && g.phase === 'playing') haptic('heavy');
+  if (myTurn()) setTimeout(() => haptic('heavy'), t);
 }
 
-function flyDraw(playerId, count, rects, delay = 0) {
-  const deck = rects.deck;
-  let to;
-  if (playerId === S.me?.id) to = centerRect($('#hand').getBoundingClientRect(), 60);
-  else { const r = $(`#opponents .opp[data-id="${CSS.escape(playerId)}"] .ava-wrap`)?.getBoundingClientRect(); to = r && centerRect(r, 30); }
-  for (let i = 0; i < count; i++) fly(cardEl(null, { back: true }), deck, to, { delay: delay + i * 120 });
+function bubble(playerId, text, delay = 0) {
+  setTimeout(() => {
+    const host = playerId === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(playerId)}"]`);
+    if (!host) return;
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.textContent = text;
+    host.appendChild(b);
+    setTimeout(() => b.remove(), 1700);
+  }, delay);
 }
-
-function bubble(playerId, text) {
-  const host = playerId === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(playerId)}"]`);
-  if (!host) return;
-  if (playerId === S.me?.id) return toast(text);
-  const b = document.createElement('div');
-  b.className = 'bubble';
-  b.textContent = text;
-  host.appendChild(b);
-  setTimeout(() => b.remove(), 1700);
-}
-
-// таймер хода
-(function tick() {
-  const g = S.game;
-  const bar = $('#turn-progress');
-  if (g?.phase === 'playing' && g.turnStartedAt) {
-    const total = g.turnSeconds * 1000;
-    const left = Math.max(0, total - (Date.now() - S.clockSkew - g.turnStartedAt));
-    const frac = left / total;
-    const isMine = myTurn();
-    bar.style.width = isMine ? frac * 100 + '%' : '0';
-    bar.style.backgroundPosition = `${(1 - frac) * 100}% 0`;
-    const ring = $('#opponents .opp.turn .ring circle');
-    if (ring) ring.setAttribute('stroke-dasharray', `${frac * 100} 100`);
-  } else bar.style.width = '0';
-  requestAnimationFrame(tick);
-})();
 
 // ---------- итоги ----------
 function resultRow(r, { win = false, showHand = true, target = 108 } = {}) {
@@ -596,4 +615,4 @@ function renderScores() {
   body.insertAdjacentHTML('beforeend', `<p class="hint center">Больше ${g.target} — вылет · ровно ${g.target - 1} — пополам · ровно ${g.target} — ноль</p>`);
 }
 
-window.addEventListener('resize', () => S.game && renderHand());
+window.addEventListener('resize', () => S.game && renderHand(S.game));

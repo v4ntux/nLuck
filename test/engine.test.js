@@ -115,3 +115,54 @@ test('ровно 107 — пополам, минус допустим', () => {
   assert.equal(g.players[0].score, -10);
   assert.equal(g.players[1].score, 53);
 });
+
+test('8 надо покрыть восьмёркой или той же мастью', () => {
+  const g = setup();
+  g.discard = [c('9', 'spades')]; g.suit = 'spades';
+  g.players[0].hand = [c('8', 'spades'), c('10', 'hearts'), c('8', 'clubs'), c('J', 'clubs')];
+  g.play('a', '8-spades');
+  assert.equal(g.current.id, 'a');
+  assert.throws(() => g.play('a', '10-hearts'));
+  assert.throws(() => g.pass('a'));
+  g.play('a', '8-clubs');
+  assert.equal(g.current.id, 'a');
+  g.play('a', 'J-clubs');
+  assert.equal(g.current.id, 'b');
+});
+
+test('8 нечем покрыть — тянем пока не найдём', () => {
+  const g = setup();
+  g.discard = [c('9', 'spades')]; g.suit = 'spades';
+  g.players[0].hand = [c('8', 'spades'), c('10', 'hearts')];
+  g.deck = [c('K', 'spades'), c('6', 'hearts'), c('J', 'diamonds')];
+  g.play('a', '8-spades');
+  g.draw('a'); g.draw('a');
+  assert.throws(() => g.play('a', '6-hearts'));
+  g.draw('a');
+  g.play('a', 'K-spades');
+  assert.equal(g.current.id, 'b');
+});
+
+test('туз ♠ пропускает следующего, 1 на 1 — ход возвращается', () => {
+  const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+  g.turn = 0; g.discard = [c('9', 'spades')]; g.suit = 'spades';
+  g.players[0].hand = [c('A', 'spades'), c('10', 'spades')];
+  g.play('a', 'A-spades');
+  assert.equal(g.current.id, 'a');
+  g.play('a', '10-spades');
+  assert.equal(g.phase, 'roundOver');
+});
+
+test('туз другой масти — без пропуска; после добора ход не уходит сам', () => {
+  const g = setup();
+  g.discard = [c('9', 'hearts')]; g.suit = 'hearts';
+  g.players[0].hand = [c('A', 'hearts'), c('6', 'clubs')];
+  g.play('a', 'A-hearts');
+  assert.equal(g.current.id, 'b');
+  g.players[1].hand = [c('7', 'clubs')];
+  g.deck.push(c('J', 'clubs'));
+  g.draw('b');
+  assert.equal(g.current.id, 'b');
+  g.pass('b');
+  assert.equal(g.current.id, 'c');
+});

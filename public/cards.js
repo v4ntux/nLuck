@@ -19,15 +19,15 @@ export const SPRITE = `
     <symbol id="s-spades" viewBox="0 0 100 100"><path d="M50 2C40 20 4 38 4 62c0 15 11 25 24 25 9 0 16-4 20-10-1 9-5 16-13 21h30c-8-5-12-12-13-21 4 6 11 10 20 10 13 0 24-10 24-25C96 38 60 20 50 2z"/></symbol>
     <symbol id="s-clubs" viewBox="0 0 100 100"><circle cx="50" cy="27" r="21"/><circle cx="25" cy="60" r="21"/><circle cx="75" cy="60" r="21"/><path d="M40 40h20v26H40z"/><path d="M47 58c0 16-5 28-15 40h36c-10-12-15-24-15-40z"/></symbol>
     <pattern id="back-pat" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="14" height="14" fill="#9b1c2c"/>
-      <path d="M0 7h14M7 0v14" stroke="#c9374a" stroke-width="1.4"/>
+      <rect width="14" height="14" fill="#9a2a20"/>
+      <path d="M0 7h14M7 0v14" stroke="#b8473a" stroke-width="1.4"/>
       <circle cx="7" cy="7" r="2.2" fill="#f1d38a"/>
     </pattern>
     <radialGradient id="back-glow" cx="50%" cy="50%" r="60%">
       <stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity=".25"/>
     </radialGradient>
     <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1ede4"/>
+      <stop offset="0" stop-color="#fdfaf2"/><stop offset="1" stop-color="#f1e8d4"/>
     </linearGradient>
     <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#f7dc8b"/><stop offset="1" stop-color="#b8862b"/>
@@ -128,7 +128,7 @@ export function cardFace(card) {
   else if (rank === 'J' || rank === 'Q' || rank === 'K') body = faceCard(rank, suit);
   else body = PIPS[rank].map(([x, y]) => pip(suit, x, y, rank === '10' ? 34 : 38, y > 140)).join('');
   return `<svg class="card-svg" viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="1" width="198" height="278" rx="14" fill="url(#paper)" stroke="#c9c3b6" stroke-width="1.5"/>
+    <rect x="1" y="1" width="198" height="278" rx="14" fill="url(#paper)" stroke="#bfb39a" stroke-width="1.5"/>
     <g fill="${col}">
       ${body}
       ${corner(rank, suit)}
@@ -140,7 +140,7 @@ export function cardFace(card) {
 /** SVG-разметка рубашки */
 export function cardBack() {
   return `<svg class="card-svg" viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="1" width="198" height="278" rx="14" fill="#fdfaf3" stroke="#c9c3b6" stroke-width="1.5"/>
+    <rect x="1" y="1" width="198" height="278" rx="14" fill="#f8f2e4" stroke="#bfb39a" stroke-width="1.5"/>
     <rect x="12" y="12" width="176" height="256" rx="8" fill="url(#back-pat)"/>
     <rect x="12" y="12" width="176" height="256" rx="8" fill="url(#back-glow)"/>
     <rect x="18" y="18" width="164" height="244" rx="6" fill="none" stroke="#f1d38a" stroke-width="2"/>

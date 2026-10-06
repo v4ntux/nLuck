@@ -4,9 +4,12 @@ import { SUITS, cardPoints } from './rules.js';
 export function chooseAction(game, playerId) {
   const me = game.player(playerId);
   let playable = me.hand.filter(c => game.canPlay(c));
-  if (game.hasDrawn && game.drawnCardId) playable = playable.filter(c => c.id === game.drawnCardId);
+  if (!game.cover && game.hasDrawn && game.drawnCardId) playable = playable.filter(c => c.id === game.drawnCardId);
 
-  if (playable.length === 0) return game.hasDrawn ? { type: 'pass' } : { type: 'draw' };
+  if (playable.length === 0) {
+    if (game.cover) return game.canDraw() ? { type: 'draw' } : { type: 'pass' };
+    return game.hasDrawn ? { type: 'pass' } : { type: 'draw' };
+  }
 
   const nextP = game.players[game.nextIndex(game.turn)];
   const score = c => {
@@ -14,7 +17,8 @@ export function chooseAction(game, playerId) {
     if (c.rank === 'Q') s = me.hand.length <= 2 ? 200 : -30; // дама — на финал
     if (c.rank === 'K' && c.suit === 'spades' && me.hand.length === 1) s = 300;
     if ((c.rank === '6' || c.rank === '7') && nextP.hand.length <= 2) s += 25;
-    if (c.rank === 'A') s += 5;
+    if (c.rank === 'A' && c.suit === 'spades') s += 5;
+    if (c.rank === '8' && !me.hand.some(x => x !== c && (x.suit === c.suit || x.rank === '8'))) s -= 40;
     return s + Math.random() * 3;
   };
   playable.sort((a, b) => score(b) - score(a));
