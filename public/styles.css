@@ -173,8 +173,16 @@ body {
 .deck-count { position: absolute; bottom: -24px; left: 0; right: 0; text-align: center; font-size: 13px; color: var(--ink-soft); z-index: 2; }
 .pile { position: relative; width: 92px; aspect-ratio: 200/280; }
 .pile .card { position: absolute; inset: 0; transform: translateX(var(--x, 0)) rotate(var(--r, 0deg)); }
-.pile .card:last-child { animation: land .25s ease-out; }
-@keyframes land { from { transform: translateX(var(--x, 0)) rotate(var(--r, 0deg)) scale(1.08); } }
+.pile .card.thud { animation: thud .32s cubic-bezier(.3,1.5,.5,1); }
+@keyframes thud {
+  0% { transform: translateX(var(--x, 0)) rotate(var(--r, 0deg)) scale(1.1); }
+  45% { transform: translateX(var(--x, 0)) rotate(var(--r, 0deg)) scale(.96); }
+  100% { transform: translateX(var(--x, 0)) rotate(var(--r, 0deg)) scale(1); }
+}
+.flyer.airborne { box-shadow: 0 14px 26px rgba(60, 40, 10, .35), 0 3px 6px rgba(60, 40, 10, .2); }
+.puff { position: fixed; z-index: 40; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; pointer-events: none;
+  border: 2px solid rgba(90, 70, 40, .35); animation: puff .45s ease-out forwards; }
+@keyframes puff { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
 .suit-badge {
   position: absolute; right: 6px; top: 50%; width: 48px; height: 48px; border-radius: 50%; background: #fbf7ee var(--grain);
   display: grid; place-items: center; font-size: 30px; border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 var(--ink);

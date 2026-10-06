@@ -468,6 +468,55 @@ function renderHand(g, deal = false) {
 }
 
 // ---------- анимации ----------
+// Бросок карты на стол: дуга, вращение, у соперника — переворот в полёте, затем хлопок о стол
+function throwCard(card, from, { delay = 0, flip = false } = {}) {
+  const pile = $('#pile');
+  const top = pile.lastElementChild;
+  const to = rectOf(pile);
+  if (!from || !to || !top) return;
+  const dur = 560;
+  top.style.visibility = 'hidden';
+  const el = cardEl(flip ? null : card, { back: flip });
+  el.classList.add('flyer', 'airborne');
+  Object.assign(el.style, { width: from.width + 'px', left: from.left + 'px', top: from.top + 'px' });
+  el.style.setProperty('--card-w', from.width + 'px');
+  const endRot = parseFloat(top.style.getPropertyValue('--r')) || 0;
+  const dirX = Math.sign((to.left - from.left) || 1);
+  const spin = 360 * dirX;
+  const dx = to.left - from.left + (parseFloat(top.style.getPropertyValue('--x')) || 0);
+  const dy = to.top - from.top;
+  const sc = to.width / from.width;
+  const arc = Math.min(140, 50 + Math.abs(dy) * 0.35);
+  const startRot = (Math.random() - 0.5) * 16;
+  setTimeout(() => {
+    document.body.appendChild(el);
+    el.animate([
+      { transform: `translate(0,0) rotate(${startRot}deg) scale(1)` },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - arc}px) rotate(${startRot + spin * 0.55}deg) scale(${(1 + sc) / 2 * 1.22})`, offset: 0.5 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${endRot + spin}deg) scale(${sc})` },
+    ], { duration: dur, easing: 'cubic-bezier(.3,.55,.35,1)', fill: 'forwards' });
+    if (flip) { // переворот рубашкой вниз прямо в полёте
+      const half = dur * 0.28;
+      el.firstElementChild.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
+      setTimeout(() => {
+        el.innerHTML = cardEl(card).innerHTML;
+        el.firstElementChild.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: half, easing: 'ease-out' });
+      }, half);
+    }
+    setTimeout(() => {
+      el.remove();
+      top.style.visibility = '';
+      top.classList.remove('thud'); void top.offsetWidth; top.classList.add('thud');
+      const pr = rectOf(pile);
+      const puff = document.createElement('div');
+      puff.className = 'puff';
+      Object.assign(puff.style, { left: pr.left + pr.width / 2 + 'px', top: pr.top + pr.height / 2 + 'px' });
+      document.body.appendChild(puff);
+      setTimeout(() => puff.remove(), 500);
+    }, dur);
+  }, delay);
+}
+
 function fly(el, from, to, { delay = 0, rotate = 0, dur = 420 } = {}) {
   if (!from || !to) return;
   el.classList.add('flyer');
@@ -498,13 +547,7 @@ function animateEvents(events, before, firstLoad) {
     } else if (ev.type === 'play') {
       const isMe = ev.playerId === S.me?.id;
       const from = isMe ? before.hand.get(ev.card.id) : centerRect(before.opp[ev.playerId], 40);
-      const top = $('#pile').lastElementChild;
-      const to = rectOf($('#pile'));
-      if (from && to) {
-        const delay = t;
-        if (top) { top.style.visibility = 'hidden'; setTimeout(() => (top.style.visibility = ''), delay + 400); }
-        fly(cardEl(ev.card), from, to, { delay, rotate: (Math.random() - 0.5) * 20, dur: 400 });
-      }
+      throwCard(ev.card, from, { delay: t, flip: !isMe });
       if (ev.card.rank === 'Q' && ev.suit) bubble(ev.playerId, SUIT_SYMBOL[ev.suit], t);
       setTimeout(() => haptic(isMe ? 'medium' : 'light'), t + 380);
       t += 260;
