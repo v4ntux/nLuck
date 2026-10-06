@@ -18,7 +18,7 @@
     <section class="screen active" id="screen-home">
       <div class="home-top">
         <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span id="me-name">…</span></div>
-        <div class="top-right"><button class="icon-btn sound-toggle" aria-label="Звук">🔊</button><div class="conn" id="conn" title="Соединение"></div></div>
+        <div class="top-right"><div class="conn" id="conn" title="Соединение"></div></div>
       </div>
       <div class="logo">
         <div class="logo-fan" id="logo-fan"></div>
@@ -29,6 +29,10 @@
         <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
         <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
         <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
+        <div class="menu-row">
+          <button class="btn btn-secondary btn-sm" data-go="achievements">🏅 Достижения</button>
+          <button class="btn btn-secondary btn-sm" data-go="settings">⚙️ Настройки</button>
+        </div>
         <button class="btn btn-link" data-modal="rules">📖 Правила</button>
       </div>
     </section>
@@ -102,20 +106,50 @@
       </div>
     </section>
 
+    <!-- Настройки -->
+    <section class="screen" id="screen-settings">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Настройки</h2></header>
+      <div class="panel settings">
+        <label class="opt"><span><b>Звук</b><small>Шелест карт, удары, мелодии</small></span><input type="checkbox" data-set="sound"><i class="sw"></i></label>
+        <label class="opt"><span><b>Вибрация</b><small>Отклик при ходах и событиях</small></span><input type="checkbox" data-set="vibro"><i class="sw"></i></label>
+        <label class="opt"><span><b>Подсказки</b><small>Подсвечивать карты, которыми можно ходить</small></span><input type="checkbox" data-set="hints"><i class="sw"></i></label>
+        <label class="opt"><span><b>Лайт-версия</b><small>Без анимаций и фактуры — если тормозит</small></span><input type="checkbox" data-set="lite"><i class="sw"></i></label>
+        <label class="opt"><span><b>Крупные карты</b><small>Карты в руке побольше</small></span><input type="checkbox" data-set="big"><i class="sw"></i></label>
+      </div>
+      <div class="panel">
+        <h3>Рубашка карт</h3>
+        <p class="hint">Новые рубашки открываются за достижения.</p>
+        <div class="backs" id="backs"></div>
+      </div>
+    </section>
+
+    <!-- Достижения -->
+    <section class="screen" id="screen-achievements">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Достижения</h2></header>
+      <div class="stats-row" id="stats-row"></div>
+      <ul class="ach-list" id="ach-list"></ul>
+    </section>
+
     <!-- Игровой стол -->
     <section class="screen" id="screen-game">
       <div class="table">
         <header class="game-bar">
           <button class="icon-btn" id="game-menu" aria-label="Меню">☰</button>
           <div class="round-label" id="round-label">Раунд 1</div>
-          <button class="icon-btn" id="game-scores" aria-label="Счёт">🏆</button>
+          <div class="bar-right">
+            <button class="icon-btn" id="game-chat" aria-label="Эмодзи">😀</button>
+            <button class="icon-btn" id="game-scores" aria-label="Счёт">🏆</button>
+          </div>
         </header>
         <div class="opponents" id="opponents"></div>
+        <div class="last-banner" id="last-banner"></div>
+        <div class="chat-panel" id="chat-panel"></div>
         <div class="table-center">
           <div class="deck" id="deck"><span class="deck-count" id="deck-count">0</span></div>
           <div class="pile" id="pile"></div>
           <div class="suit-badge" id="suit-badge"></div>
         </div>
+        <div class="hint-line" id="hint-line"></div>
         <div class="me-row">
           <div class="me-info" id="me-info"></div>
           <div class="actions">
@@ -172,7 +206,7 @@
     <div class="sheet">
       <h3>Меню</h3>
       <button class="btn btn-secondary" data-modal="rules">📖 Правила</button>
-      <button class="btn btn-secondary sound-toggle">🔊 Звук</button>
+      <button class="btn btn-secondary" id="menu-settings">⚙️ Настройки</button>
       <button class="btn btn-danger" id="game-leave">🚪 Покинуть стол</button>
       <button class="btn btn-ghost" data-close>Вернуться в игру</button>
     </div>
@@ -206,12 +240,14 @@
       </table>
       <p>Если закончил раунд <b>K♠</b> — минус 80 очков, <b>Q♠</b> — минус 40, другой дамой — минус 20.</p>
       <p>Очки копятся из раунда в раунд и могут уходить в минус.</p>
+      <p>Когда у кого-то остаётся <b>последняя карта</b> — об этом узнают все за столом.</p>
       <p>Набрал <b>больше 108</b> — вылетаешь. Ровно <b>107</b> — счёт делится пополам. Ровно <b>108</b> — счёт обнуляется. Побеждает последний оставшийся.</p>
       <button class="btn btn-primary" data-close>Понятно</button>
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="ach-toast" id="ach-toast"></div>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -120,6 +120,7 @@ export class Game {
       this.suit = card.suit;
     }
     this.emit({ type: 'play', playerId, card, suit: this.suit });
+    if (p.hand.length === 1) this.emit({ type: 'lastCard', playerId });
 
     // Восьмёрка: тот же игрок обязан покрыть
     if (card.rank === '8' && this.rules.eightMustCover) {

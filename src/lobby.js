@@ -5,6 +5,9 @@ const BOT_NAMES = ['Бот Вася', 'Бот Маша', 'Бот Петя', 'Б�
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ROUND_PAUSE_MS = 7000;
 const MAX_PLAYERS = 6;
+// Чат только из готовых эмодзи и фраз — без модерации и спама
+export const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '🔥', '💩', '🙏', '🤝',
+  'Удачи!', 'Ну ты даёшь!', 'Быстрее!', 'Ха-ха', 'Не повезло', 'Хорош!', 'Ещё партию?', 'GG'];
 export const MODES = {
   duel: { min: 2, max: 2 },
   trio: { min: 3, max: 3 },
@@ -66,6 +69,7 @@ export class Lobby {
         case 'room_start': return this.startRoom(user);
         case 'rematch': return this.rematch(user);
         case 'play': case 'draw': case 'pass': return this.gameAction(user, msg);
+        case 'chat': return this.chat(user, Number(msg.e));
         case 'ping': return this.send(user, { type: 'pong' });
       }
     } catch (e) {
@@ -297,6 +301,32 @@ export class Lobby {
     this.schedule(room);
   }
 
+  chat(user, e) {
+    const room = user.roomCode && this.rooms.get(user.roomCode);
+    if (!room || !(e >= 0 && e < CHAT.length)) return;
+    const now = Date.now();
+    if (now - (user.lastChat || 0) < 1200) return;
+    user.lastChat = now;
+    this.chatSend(room, user.id, e);
+  }
+
+  chatSend(room, from, e) {
+    for (const s of room.seats) if (!s.bot) this.send(this.users.get(s.id), { type: 'chat', from, e });
+  }
+
+  /** Боты иногда реагируют эмодзи */
+  botReact(room, botId, events) {
+    if (Math.random() > 0.22) return;
+    let pool = null;
+    for (const ev of events) {
+      if (ev.type === 'penalty' && ev.playerId === botId) pool = [2, 3, 4];        // 😡 😭 🤔
+      else if (ev.type === 'penalty') pool = [5, 1, 0];                            // 😈 😎 😂
+      else if (ev.type === 'roundEnd' && ev.winnerId === botId) pool = [1, 8, 0];  // 😎 🔥 😂
+      else if (ev.type === 'lastCard' && ev.playerId === botId) pool = [5, 1];
+    }
+    if (pool) setTimeout(() => this.chatSend(room, botId, pool[Math.floor(Math.random() * pool.length)]), 600 + Math.random() * 900);
+  }
+
   // ---------- ход игры ----------
 
   gameAction(user, msg) {
@@ -327,7 +357,9 @@ export class Lobby {
     else return; // живой игрок ходит сам, никаких авто-ходов
     room.timer = setTimeout(() => {
       if (room.game !== g || g.phase !== 'playing' || g.current !== cur) return;
+      const seq = g.eventSeq;
       try { applyAction(g, cur.id, chooseAction(g, cur.id)); } catch (e) { console.error('auto move', e); g.advance(g.nextIndex(g.turn)); }
+      if (seat?.bot) for (const s of room.seats.filter(x => x.bot)) this.botReact(room, s.id, g.log.filter(e => e.seq > seq));
       this.broadcastGame(room);
       this.schedule(room);
     }, delay);
@@ -354,6 +386,7 @@ export class Lobby {
       code: room.code,
       hostId: room.hostId,
       private: room.private,
+      mode: room.mode || null,
       inGame: !!room.game && room.game.phase !== 'gameOver',
       seats: room.seats.map(s => ({ ...s, online: s.bot || !!this.users.get(s.id)?.ws })),
     };

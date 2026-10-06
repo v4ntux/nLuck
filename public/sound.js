@@ -65,6 +65,8 @@ export const sfx = {
   error: () => tone(130, { dur: 0.14, type: 'square', gain: 0.08 }),
   win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, { dur: 0.3, type: 'triangle', gain: 0.18, at: i * 0.11 })),
   lose: () => [392, 330, 262].forEach((f, i) => tone(f, { dur: 0.35, type: 'triangle', gain: 0.18, at: i * 0.15 })),
+  lastCard: () => { tone(988, { dur: 0.12, type: 'square', gain: 0.07 }); tone(988, { dur: 0.12, type: 'square', gain: 0.07, at: 0.16 }); tone(1319, { dur: 0.3, type: 'triangle', gain: 0.15, at: 0.32 }); },
+  pop: () => { tone(500, { dur: 0.1, gain: 0.15, slide: 2 }); rustle({ freq: 2000, dur: 0.03, gain: 0.15 }); },
   stamp: () => { rustle({ freq: 500, type: 'lowpass', dur: 0.12, gain: 1 }); tone(90, { dur: 0.12, gain: 0.3, slide: 0.5 }); },
 };
 

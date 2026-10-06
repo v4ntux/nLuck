@@ -1,5 +1,6 @@
 import { SPRITE, cardEl, SUIT_SYMBOL, SUIT_NAME, isRed, rankLabel } from './cards.js';
-import { sfx, isMuted, setMuted } from './sound.js';
+import { sfx, setMuted } from './sound.js';
+import { settings, saveSettings, BACKS, ACHIEVEMENTS, progress, loadProgress, saveProgress } from './store.js';
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -56,6 +57,7 @@ if (tg) {
   tg.BackButton?.onClick(goBack);
 }
 const haptic = (type = 'light') => {
+  if (!settings.vibro) return;
   try {
     if (type === 'success' || type === 'error' || type === 'warning') tg?.HapticFeedback?.notificationOccurred(type);
     else tg?.HapticFeedback?.impactOccurred(type);
@@ -102,6 +104,7 @@ function onMessage(m) {
     case 'error': toast(m.message); haptic('error'); sfx.error(); shakeCard(S.lastTried); S.lastTried = null; break;
     case 'queue': onQueue(m); break;
     case 'stats': onStats(m); break;
+    case 'chat': onChat(m); break;
     case 'room': onRoom(m.room); break;
     case 'game': onGame(m.game); break;
   }
@@ -123,12 +126,93 @@ function goBack() {
 }
 function home() { S.history = []; show('home', { push: false }); }
 
-function syncSound() { $$('.sound-toggle').forEach(b => (b.innerHTML = b.classList.contains('btn') ? (isMuted() ? '🔇 Звук выключен' : '🔊 Звук включён') : (isMuted() ? '🔇' : '🔊'))); }
-$$('.sound-toggle').forEach(b => b.addEventListener('click', () => { setMuted(!isMuted()); syncSound(); sfx.click(); }));
-syncSound();
+// ---------- настройки ----------
+function applySettings() {
+  setMuted(!settings.sound);
+  document.body.classList.toggle('lite', settings.lite);
+  document.body.classList.toggle('big', settings.big);
+  const b = BACKS[settings.back] || BACKS.red;
+  document.documentElement.style.setProperty('--back', b.color);
+  document.documentElement.style.setProperty('--back-line', b.line);
+  if (S.game) renderHand(S.game);
+}
+function renderSettings() {
+  $$('[data-set]').forEach(i => (i.checked = !!settings[i.dataset.set]));
+  const box = $('#backs');
+  box.innerHTML = '';
+  for (const [id, b] of Object.entries(BACKS)) {
+    const open = !b.need || progress.unlocked[b.need];
+    const el = document.createElement('button');
+    el.className = 'back-opt' + (settings.back === id ? ' sel' : '') + (open ? '' : ' locked');
+    el.style.setProperty('--c', b.color);
+    const ach = ACHIEVEMENTS.find(a => a.id === b.need);
+    el.innerHTML = `<i></i><span>${b.name}</span>${open ? '' : `<small>🔒 ${esc(ach?.name || '')}</small>`}`;
+    el.onclick = () => {
+      if (!open) { toast(`Откроется за «${ach?.name}»: ${ach?.desc}`); return; }
+      settings.back = id; saveSettings(); applySettings(); renderSettings(); haptic();
+    };
+    box.appendChild(el);
+  }
+}
+$$('[data-set]').forEach(i => i.addEventListener('change', () => {
+  settings[i.dataset.set] = i.checked;
+  saveSettings(); applySettings(); haptic(); sfx.click();
+}));
+$('#menu-settings').addEventListener('click', () => { closeModal('menu'); renderSettings(); show('settings'); });
+applySettings();
+
+// ---------- достижения ----------
+function renderAchievements() {
+  const st = progress.stats;
+  const rate = st.games ? Math.round((st.wins / st.games) * 100) : 0;
+  $('#stats-row').innerHTML = [['Партий', st.games], ['Побед', st.wins], ['Винрейт', rate + '%'], ['Лучшая серия', st.bestStreak]]
+    .map(([k, v]) => `<div class="stat-box"><b>${v}</b><span>${k}</span></div>`).join('');
+  const done = ACHIEVEMENTS.filter(a => progress.unlocked[a.id]).length;
+  const list = $('#ach-list');
+  list.innerHTML = `<li class="ach-head">Открыто ${done} из ${ACHIEVEMENTS.length}</li>`;
+  ACHIEVEMENTS.forEach((a, i) => {
+    const got = progress.unlocked[a.id];
+    const [cur, max] = a.goal ? a.goal(st) : [0, 0];
+    const li = document.createElement('li');
+    li.className = 'ach' + (got ? ' got' : '');
+    li.style.animationDelay = `${i * 35}ms`;
+    li.innerHTML = `<span class="ico">${a.icon}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}${a.reward ? ` · 🎁 ${esc(a.reward)}` : ''}</small>`
+      + (a.goal && !got ? `<div class="ach-bar"><i style="width:${Math.min(100, (cur / max) * 100)}%"></i></div><small>${Math.min(cur, max)} / ${max}</small>` : '')
+      + `</div>${got ? '<span class="tick">✓</span>' : ''}`;
+    list.appendChild(li);
+  });
+}
+const achQueue = [];
+function unlock(id) {
+  if (progress.unlocked[id]) return;
+  const a = ACHIEVEMENTS.find(x => x.id === id);
+  if (!a) return;
+  progress.unlocked[id] = Date.now();
+  saveProgress();
+  achQueue.push(a);
+  if (achQueue.length === 1) showAch();
+}
+function showAch() {
+  const a = achQueue[0];
+  if (!a) return;
+  const t = $('#ach-toast');
+  t.innerHTML = `<span class="ico">${a.icon}</span><div><small>Достижение открыто!</small><b>${esc(a.name)}</b>${a.reward ? `<small>🎁 ${esc(a.reward)}</small>` : ''}</div>`;
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  sfx.win(); haptic('success');
+  setTimeout(() => { t.classList.remove('show'); achQueue.shift(); setTimeout(showAch, 400); }, 3200);
+}
+function checkGoals() {
+  for (const a of ACHIEVEMENTS) if (a.goal) { const [c, m] = a.goal(progress.stats); if (c >= m) unlock(a.id); }
+}
+loadProgress().then(() => { checkGoals(); if (S.screen === 'achievements') renderAchievements(); });
 document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-card, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
 
-$$('[data-go]').forEach(b => b.addEventListener('click', () => { haptic(); show(b.dataset.go); }));
+$$('[data-go]').forEach(b => b.addEventListener('click', () => {
+  haptic();
+  if (b.dataset.go === 'settings') renderSettings();
+  if (b.dataset.go === 'achievements') renderAchievements();
+  show(b.dataset.go);
+}));
 $$('[data-back]').forEach(b => b.addEventListener('click', goBack));
 $$('[data-modal]').forEach(b => b.addEventListener('click', () => openModal(b.dataset.modal)));
 $$('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.closest('.modal').id.replace('modal-', ''))));
@@ -384,8 +468,8 @@ function onGame(g) {
   animateEvents(g.events || [], before, !prev && !dealing);
 
   if (g.phase === 'playing') { closeModal('round'); closeModal('over'); }
-  if (g.phase === 'roundOver') setTimeout(renderRound, 700);
-  if (g.phase === 'gameOver') { closeModal('round'); setTimeout(renderOver, 700); }
+  if (g.phase === 'roundOver') { trackRound(g); setTimeout(renderRound, 700); }
+  if (g.phase === 'gameOver') { trackRound(g); trackGame(g); closeModal('round'); setTimeout(renderOver, 700); }
 }
 
 function resetTable() {
@@ -408,7 +492,7 @@ function renderTable(g, deal) {
   for (const p of opps) {
     const seat = seatOf(p.id);
     const el = document.createElement('div');
-    el.className = 'opp' + (p.id === g.turn && g.phase === 'playing' ? ' turn' : '') + (p.out ? ' out' : '');
+    el.className = 'opp' + (p.id === g.turn && g.phase === 'playing' ? ' turn' : '') + (p.out ? ' out' : '') + (p.cards === 1 && !p.out && g.phase === 'playing' ? ' last' : '');
     el.dataset.id = p.id;
     const wrap = document.createElement('div');
     wrap.className = 'ava-wrap';
@@ -459,10 +543,28 @@ function renderTable(g, deal) {
   $('#btn-pass').disabled = !mine || !g.canPass;
 
   renderHand(g, deal);
+  renderHint(g);
 }
 
 const SUIT_ORDER = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
 const RANK_ORDER = { '6': 0, '7': 1, '8': 2, '9': 3, '10': 4, J: 5, Q: 6, K: 7, A: 8 };
+
+function hintPlayable(c, g) {
+  if (g.cover) return c.rank === '8' || c.suit === g.cover;
+  if (g.hasDrawn && g.drawnCardId && c.id !== g.drawnCardId) return false;
+  return c.rank === 'Q' || c.suit === g.suit || c.rank === g.top.rank;
+}
+
+function renderHint(g) {
+  const el = $('#hint-line');
+  if (!settings.hints || g.phase !== 'playing') { el.textContent = ''; return; }
+  const mine = myTurn();
+  el.classList.toggle('mine', mine);
+  if (!mine) el.textContent = `Ходит ${nameOf(g.turn)}`;
+  else if (g.cover) el.textContent = `Покройте восьмёрку: 8 или ${SUIT_SYMBOL[g.cover]}` + (g.hand.some(c => hintPlayable(c, g)) ? '' : ' — тяните из колоды');
+  else if (g.hasDrawn) el.textContent = 'Положите взятую карту или «Пас»';
+  else el.textContent = g.hand.some(c => hintPlayable(c, g)) ? 'Ваш ход' : 'Нечем ходить — возьмите карту';
+}
 
 function renderHand(g, deal = false) {
   const hand = [...g.hand].sort((a, b) => SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit] || RANK_ORDER[a.rank] - RANK_ORDER[b.rank]);
@@ -491,7 +593,7 @@ function renderHand(g, deal = false) {
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(e => el.addEventListener(e, () => el.classList.remove('lift')));
       S.handEls.set(c.id, el);
       box.appendChild(el);
-      if (S.initialized) {
+      if (S.initialized && !settings.lite) {
         el.style.transition = 'none';
         el.style.transform = fromDeck;
         el.classList.add('flip');
@@ -504,6 +606,10 @@ function renderHand(g, deal = false) {
     } else {
       el.style.transitionDelay = '0ms';
     }
+    const hint = settings.hints && myTurn();
+    const ok = hint && hintPlayable(c, g);
+    el.classList.toggle('playable', ok);
+    el.classList.toggle('dim', hint && !ok);
     el.style.zIndex = i + 1;
     el.style.transform = target;
   });
@@ -517,10 +623,12 @@ function throwCard(card, from, { delay = 0, flip = false } = {}) {
   const top = pile.lastElementChild;
   const to = rectOf(pile);
   if (!from || !to || !top) return;
+  if (settings.lite) { setTimeout(() => sfx.land(), delay); return; }
   const dur = 560;
   top.style.visibility = 'hidden';
   const el = cardEl(flip ? null : card, { back: flip });
   el.classList.add('flyer', 'airborne');
+  if (flip) el.classList.add('flipping');
   Object.assign(el.style, { width: from.width + 'px', left: from.left + 'px', top: from.top + 'px' });
   el.style.setProperty('--card-w', from.width + 'px');
   const endRot = parseFloat(top.style.getPropertyValue('--r')) || 0;
@@ -563,7 +671,7 @@ function throwCard(card, from, { delay = 0, flip = false } = {}) {
 }
 
 function fly(el, from, to, { delay = 0, rotate = 0, dur = 420 } = {}) {
-  if (!from || !to) return;
+  if (!from || !to || settings.lite) return;
   el.classList.add('flyer');
   Object.assign(el.style, { width: from.width + 'px', left: from.left + 'px', top: from.top + 'px', transitionDuration: dur + 'ms' });
   el.style.setProperty('--card-w', from.width + 'px');
@@ -593,6 +701,8 @@ function animateEvents(events, before, firstLoad) {
       for (let i = 0; i < 10; i++) sfx.deal(0.35 + i * 0.09);
     } else if (ev.type === 'play') {
       const isMe = ev.playerId === S.me?.id;
+      if (isMe && ev.card.rank === '8' && S.prevPlay?.by === S.me?.id && S.prevPlay.rank === '8') unlock('eight_chain');
+      S.prevPlay = { by: ev.playerId, rank: ev.card.rank, id: ev.card.id };
       const from = isMe ? before.hand.get(ev.card.id) : centerRect(before.opp[ev.playerId], 40);
       throwCard(ev.card, from, { delay: t, flip: !isMe });
       if (ev.card.rank === 'Q' && ev.suit) bubble(ev.playerId, SUIT_SYMBOL[ev.suit], t);
@@ -606,7 +716,10 @@ function animateEvents(events, before, firstLoad) {
       } else if (ev.type === 'penalty') { haptic('warning'); setTimeout(() => shakeScreen(), t); }
       setTimeout(() => (ev.type === 'penalty' ? sfx.penalty() : sfx.draw()), t);
       if (ev.type === 'penalty') bubble(ev.playerId, `+${ev.count}`, t);
+      if (ev.type === 'penalty' && ev.card?.id === 'K-spades' && S.prevPlay?.by === S.me?.id) unlock('king_penalty');
       t += 150;
+    } else if (ev.type === 'lastCard') {
+      setTimeout(() => announceLast(ev.playerId), t + 350);
     } else if (ev.type === 'skip') {
       bubble(ev.playerId, '⏭', t);
       setTimeout(sfx.skip, t + 300);
@@ -618,6 +731,16 @@ function animateEvents(events, before, firstLoad) {
   }
   if (myTurn() && S.wasTurn !== true) setTimeout(() => { haptic('heavy'); sfx.turn(); }, t + 200);
   S.wasTurn = myTurn();
+}
+
+function announceLast(playerId) {
+  const me = playerId === S.me?.id;
+  const b = $('#last-banner');
+  b.innerHTML = me ? '☝️ У вас <b>последняя карта!</b>' : `☝️ У <b>${esc(nameOf(playerId))}</b> последняя карта!`;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  sfx.lastCard(); haptic('warning');
+  clearTimeout(S.lastTimer);
+  S.lastTimer = setTimeout(() => b.classList.remove('show'), 2600);
 }
 
 function shakeScreen() {
@@ -719,3 +842,77 @@ function renderScores() {
 }
 
 window.addEventListener('resize', () => S.game && renderHand(S.game));
+
+// ---------- эмодзи-чат ----------
+const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '🔥', '💩', '🙏', '🤝',
+  'Удачи!', 'Ну ты даёшь!', 'Быстрее!', 'Ха-ха', 'Не повезло', 'Хорош!', 'Ещё партию?', 'GG'];
+(function buildChat() {
+  const panel = $('#chat-panel');
+  CHAT.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = i < 12 ? 'emo' : 'phrase';
+    b.textContent = t;
+    b.onclick = () => {
+      const now = Date.now();
+      if (now - (S.lastChat || 0) < 1200) return;
+      S.lastChat = now;
+      send({ type: 'chat', e: i });
+      panel.classList.remove('open');
+      progress.stats.chats++; saveProgress(); checkGoals();
+    };
+    panel.appendChild(b);
+  });
+  $('#game-chat').addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('open'); });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#chat-panel, #game-chat')) panel.classList.remove('open'); });
+})();
+function onChat(m) {
+  const text = CHAT[m.e];
+  if (!text || S.screen !== 'game') return;
+  const host = m.from === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(m.from)}"]`);
+  if (!host) return;
+  const b = document.createElement('div');
+  b.className = 'chat-bubble' + (m.e < 12 ? ' big' : '');
+  b.textContent = text;
+  host.appendChild(b);
+  sfx.pop();
+  setTimeout(() => b.remove(), 2600);
+}
+
+// ---------- учёт достижений по итогам ----------
+function trackRound(g) {
+  const rr = g.roundResult;
+  const key = `${S.room?.code}:${g.round}:${rr?.winnerId}`;
+  if (!rr || S.roundKey === key) return;
+  S.roundKey = key;
+  const meId = S.me?.id;
+  if (rr.winnerId === meId) {
+    progress.stats.roundsWon++;
+    unlock('round_closer');
+    if (rr.lastCard?.id === 'K-spades') unlock('king_finish');
+    if (rr.lastCard?.rank === 'Q') unlock('queen_finish');
+  }
+  const mine = rr.results.find(r => r.id === meId);
+  if (mine?.note === 'reset') unlock('reset_108');
+  if (mine?.note === 'half') unlock('half_107');
+  if (mine && mine.score < 0) unlock('negative');
+  saveProgress(); checkGoals();
+}
+function trackGame(g) {
+  const key = `${S.room?.code}:over:${g.round}:${g.winnerId}`;
+  if (S.gameKey === key) return;
+  S.gameKey = key;
+  const st = progress.stats;
+  const meId = S.me?.id;
+  st.games++;
+  unlock('first_game');
+  if (S.room?.private && (S.room.seats || []).filter(x => !x.bot).length >= 2) unlock('friends');
+  if (g.winnerId === meId) {
+    st.wins++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak);
+    unlock('first_win');
+    if (g.players.length >= 4) unlock('party_win');
+    const me = g.players.find(p => p.id === meId);
+    if (me && me.score > 90) unlock('comeback');
+    if (st.streak >= 3) unlock('streak_3');
+  } else st.streak = 0;
+  saveProgress(); checkGoals();
+}

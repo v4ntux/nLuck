@@ -303,3 +303,120 @@ body {
 @keyframes trophy { from { transform: scale(0) rotate(-30deg); } }
 .suit-badge.show { animation: stamp .45s var(--spring); }
 @keyframes stamp { from { transform: translateY(-50%) scale(2.2) rotate(-25deg); opacity: 0; } }
+
+/* ---------- меню / настройки / достижения ---------- */
+:root { --back: #9a2a20; --back-line: #b8473a; }
+#back-pat rect { fill: var(--back); }
+#back-pat path { stroke: var(--back-line); }
+.opp .mini i, .sh { background-color: var(--back) !important; }
+.menu-row { display: flex; gap: 12px; }
+.btn-sm { font-size: 15px; padding: 11px 10px; }
+.bar-right { display: flex; gap: 8px; }
+
+.settings { display: flex; flex-direction: column; gap: 4px; padding: 6px 16px; }
+.opt { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1.5px dashed var(--line); cursor: pointer; }
+.opt:last-child { border-bottom: 0; }
+.opt span { flex: 1; display: flex; flex-direction: column; }
+.opt small { color: var(--ink-soft); font-size: 13px; }
+.opt input { display: none; }
+.sw { position: relative; width: 50px; height: 28px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--paper-2); flex: none; transition: background .3s var(--snap); }
+.sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: #fbf7ee; border: 1.5px solid var(--ink); transition: transform .35s var(--spring); }
+.opt input:checked + .sw { background: var(--red); }
+.opt input:checked + .sw::after { transform: translateX(21px); }
+.backs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.back-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; font: inherit; color: var(--ink); cursor: pointer; padding: 4px 0; }
+.back-opt i { width: 44px; height: 62px; border-radius: 5px; border: 3px solid #fbf7ee; outline: 1.5px solid var(--line); background: var(--c) var(--grain); box-shadow: var(--shadow); transition: transform .35s var(--spring); }
+.back-opt.sel i { outline: 2.5px solid var(--ink); transform: translateY(-4px) rotate(-3deg); }
+.back-opt span { font-size: 12px; font-weight: 700; }
+.back-opt small { font-size: 10px; color: var(--ink-soft); text-align: center; line-height: 1.2; }
+.back-opt.locked i { filter: grayscale(.8) brightness(1.2); opacity: .55; }
+
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 12px; }
+.stat-box { background: #fbf7ee var(--grain); border: 1.5px solid var(--ink); border-radius: 8px; padding: 10px 4px; text-align: center; box-shadow: 2px 2px 0 var(--ink); }
+.stat-box b { display: block; font-size: 22px; color: var(--red); font-family: 'Playfair Display', serif; }
+.stat-box span { font-size: 11px; color: var(--ink-soft); }
+.ach-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ach-head { font-weight: 700; color: var(--ink-soft); padding: 2px 4px; }
+.ach { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1.5px dashed var(--line); border-radius: 8px; animation: rowIn .45s var(--snap) backwards; opacity: .75; }
+.ach.got { opacity: 1; border-style: solid; border-color: var(--ink); background: #fbf7ee var(--grain); box-shadow: 2px 2px 0 var(--ink); }
+.ach .ico { font-size: 28px; width: 40px; text-align: center; filter: grayscale(1); }
+.ach.got .ico { filter: none; }
+.ach div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ach small { color: var(--ink-soft); font-size: 12.5px; }
+.ach .tick { font-size: 20px; color: #2f6b2a; font-weight: 700; }
+.ach-bar { height: 5px; border-radius: 4px; background: var(--line); margin: 5px 0 2px; overflow: hidden; }
+.ach-bar i { display: block; height: 100%; background: var(--red); }
+
+.ach-toast {
+  position: fixed; left: 50%; top: 14px; z-index: 300; display: flex; align-items: center; gap: 12px; min-width: 260px; max-width: 92%;
+  padding: 12px 16px; background: #fbf7ee var(--grain); border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--ink);
+  transform: translate(-50%, -160%) rotate(-2deg); transition: transform .6s var(--spring), visibility 0s .6s; pointer-events: none; visibility: hidden;
+}
+.ach-toast.show { transform: translate(-50%, 0) rotate(0); visibility: visible; transition: transform .6s var(--spring), visibility 0s; }
+.ach-toast .ico { font-size: 34px; }
+.ach-toast div { display: flex; flex-direction: column; }
+.ach-toast small { color: var(--ink-soft); font-size: 12px; }
+.ach-toast b { font-size: 17px; color: var(--red); }
+
+/* ---------- последняя карта ---------- */
+.last-banner {
+  position: absolute; left: 50%; top: 33%; z-index: 30; white-space: nowrap; pointer-events: none;
+  background: var(--red) var(--grain); color: #fbf3e4; border: 1.5px solid var(--red-dark); border-radius: 8px; padding: 8px 16px; font-size: 17px;
+  box-shadow: 3px 3px 0 var(--red-dark); opacity: 0; transform: translate(-50%, -10px) scale(.6) rotate(-4deg);
+}
+.last-banner.show { animation: lastIn 2.6s var(--snap) forwards; }
+@keyframes lastIn {
+  0% { opacity: 0; transform: translate(-50%, -10px) scale(1.8) rotate(-8deg); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1) rotate(-2deg); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1) rotate(-2deg); }
+  100% { opacity: 0; transform: translate(-50%, -14px) scale(.9) rotate(-2deg); }
+}
+.opp.last .cnt { background: var(--red); animation: lastPulse 1.2s ease-in-out infinite; }
+.opp.last .ava-wrap::after { content: 'последняя!'; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: #fbf3e4; background: var(--red); border-radius: 4px; padding: 0 4px; white-space: nowrap; }
+@keyframes lastPulse { 50% { transform: scale(1.25); } }
+
+/* ---------- эмодзи-чат ---------- */
+.chat-panel {
+  position: absolute; right: 10px; top: 58px; z-index: 60; width: min(320px, calc(100% - 20px)); display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  padding: 10px; background: #fbf7ee var(--grain); border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--ink);
+  transform-origin: top right; transform: scale(.4); opacity: 0; pointer-events: none; transition: transform .35s var(--spring), opacity .15s;
+}
+.chat-panel.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.chat-panel .emo { font-size: 26px; background: none; border: 0; cursor: pointer; padding: 4px 0; border-radius: 6px; transition: transform .25s var(--spring); }
+.chat-panel .emo:active { transform: scale(1.4); }
+.chat-panel .phrase { grid-column: span 3; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--paper-3); border: 1.5px solid var(--ink); border-radius: 6px; padding: 6px 4px; cursor: pointer; }
+.chat-panel .phrase:active { transform: translate(1px, 1px); }
+.chat-bubble {
+  position: absolute; left: 50%; top: -6px; z-index: 20; white-space: nowrap; pointer-events: none;
+  background: #fff var(--grain); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 12px; padding: 4px 10px; font-weight: 700; font-size: 14px;
+  box-shadow: 2px 2px 0 var(--ink); animation: chatIn 2.6s var(--snap) forwards;
+}
+.chat-bubble.big { font-size: 30px; padding: 2px 8px; background: none; border: 0; box-shadow: none; }
+.me-info .chat-bubble { left: 22px; }
+@keyframes chatIn {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(.3); }
+  10% { opacity: 1; transform: translate(-50%, -100%) scale(1.15); }
+  18% { transform: translate(-50%, -100%) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, -110%); }
+  100% { opacity: 0; transform: translate(-50%, -130%); }
+}
+
+/* ---------- подсказки ---------- */
+.hint-line { text-align: center; min-height: 22px; font-weight: 700; font-size: 15px; color: var(--ink-soft); }
+.hint-line.mine { color: var(--red); }
+.hand .card.playable { box-shadow: 0 0 0 2.5px var(--red), var(--shadow); }
+.hand .card.dim { filter: brightness(.82) saturate(.6); }
+
+/* ---------- крупные карты ---------- */
+body.big .hand { --card-w: 100px; }
+
+/* ---------- лайт-версия: без фактуры, теней и анимаций ---------- */
+body.lite { --grain: none !important; background-image: none; }
+body.lite .card::after { display: none; }
+body.lite .card, body.lite .btn, body.lite .panel, body.lite .mode-card { box-shadow: none !important; }
+body.lite *, body.lite *::before, body.lite *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; transition-delay: 0ms !important; }
+body.lite .last-banner.show { animation: none !important; opacity: 1; transform: translate(-50%, 0); }
+body.lite .chat-bubble { animation: none !important; transform: translate(-50%, -100%); }
+
+.flyer.flipping { background: transparent; box-shadow: none; }
+.flyer.flipping::after { display: none; }
