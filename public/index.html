@@ -21,8 +21,6 @@
         <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span class="me-text"><b id="me-name">…</b><small id="me-sub">новичок</small></span></div>
         <div class="top-right">
           <div class="conn" id="conn" title="Соединение"></div>
-          <button class="icon-btn" data-go="achievements" aria-label="Достижения">🏅</button>
-          <button class="icon-btn gear" data-go="settings" aria-label="Настройки">⚙️</button>
         </div>
       </div>
       <div class="logo">
@@ -34,7 +32,11 @@
         <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
         <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
         <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
-        <button class="btn btn-link" data-go="rules">📖 Правила</button>
+        <div class="quick-row">
+          <button class="btn quick" data-go="achievements"><i>🏅</i><span>Награды</span></button>
+          <button class="btn quick" data-go="rules"><i>📖</i><span>Правила</span></button>
+          <button class="btn quick" data-go="settings"><i>⚙️</i><span>Настройки</span></button>
+        </div>
       </div>
     </section>
 
@@ -143,14 +145,10 @@
         <header class="game-bar">
           <button class="icon-btn" id="game-menu" aria-label="Меню">☰</button>
           <div class="round-label" id="round-label">Раунд 1</div>
-          <div class="bar-right">
-            <button class="icon-btn" id="game-chat" aria-label="Эмодзи">😀</button>
-            <button class="icon-btn" id="game-scores" aria-label="Счёт">🏆</button>
-          </div>
+          <button class="icon-btn" id="game-scores" aria-label="Счёт">🏆</button>
         </header>
         <div class="opponents" id="opponents"></div>
         <div class="last-banner" id="last-banner"></div>
-        <div class="chat-panel" id="chat-panel"></div>
         <div class="table-center">
           <div class="deck" id="deck"><span class="deck-count" id="deck-count">0</span></div>
           <div class="pile" id="pile"></div>
@@ -159,10 +157,12 @@
         <div class="hint-line" id="hint-line"></div>
         <div class="me-row">
           <div class="me-info" id="me-info"></div>
-          <div class="actions">
-            <button class="btn btn-act" id="btn-draw">Взять</button>
-            <button class="btn btn-act" id="btn-pass">Пас</button>
-          </div>
+        </div>
+        <div class="act-row">
+          <div class="chat-panel" id="chat-panel"></div>
+          <button class="btn act-chat" id="game-chat" aria-label="Эмодзи">😀</button>
+          <button class="btn btn-act" id="btn-draw">Взять</button>
+          <button class="btn btn-act" id="btn-pass">Пас</button>
         </div>
         <div class="hand" id="hand"></div>
       </div>

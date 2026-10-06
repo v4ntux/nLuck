@@ -142,3 +142,18 @@ body {
 body.lite { background-image: none; }
 body.lite .table-center::before, body.lite .panel::before, body.lite .room-code-box::before { display: none; }
 body.lite .mode-card { background-image: none; }
+
+/* ===== удобство: всё частое — внизу, под большим пальцем ===== */
+.quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.btn.quick { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; font-size: 13px; }
+.btn.quick i { font-style: normal; font-size: 22px; }
+.menu { gap: 12px; }
+
+.me-row { margin-top: 2px; }
+.act-row { position: relative; display: grid; grid-template-columns: 52px 1fr 1fr; gap: 8px; margin-top: 6px; }
+.act-row .btn { padding: 12px 6px; font-size: 18px; min-height: 50px; }
+.act-row .act-chat { font-size: 22px; padding: 0; }
+.act-row #btn-draw:not(:disabled) { color: #fbf1df; border-color: #6e170f; text-shadow: 0 -1px 0 rgba(0,0,0,.35);
+  background-image: var(--grain), linear-gradient(180deg, #bd3a2d, #97241a); box-shadow: inset 0 1px 0 rgba(255,200,180,.35), var(--lift); }
+.act-row .chat-panel { top: auto; right: auto; left: 0; bottom: calc(100% + 8px); transform-origin: bottom left; }
+.hand { margin-top: 2px; }
