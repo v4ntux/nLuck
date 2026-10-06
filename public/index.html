@@ -4,32 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>108 — карточная игра</title>
-  <meta name="theme-color" content="#e9dfc8">
+  <meta name="theme-color" content="#0b0e1a">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&family=Playfair+Display:wght@700;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Unbounded:wght@700;900&display=swap">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="night.css">
 </head>
 <body>
   <div id="sprite"></div>
 
   <main id="app">
     <!-- Главный экран -->
-    <section class="screen tab-screen active" id="screen-home">
+    <section class="screen active" id="screen-home">
       <div class="home-top">
         <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span class="me-text"><b id="me-name">…</b><small id="me-sub">новичок</small></span></div>
-        <div class="conn" id="conn" title="Соединение"></div>
+        <div class="top-right">
+          <div class="conn" id="conn" title="Соединение"></div>
+          <button class="icon-btn" data-go="achievements" aria-label="Достижения">🏅</button>
+          <button class="icon-btn gear" data-go="settings" aria-label="Настройки">⚙️</button>
+        </div>
       </div>
-      <div class="hero">
+      <div class="logo">
         <div class="logo-fan" id="logo-fan"></div>
         <h1>108</h1>
+        <p class="tagline">Карточная игра · 36 карт</p>
       </div>
-
-      <button class="btn btn-primary btn-xl play-btn" data-go="mode"><span>▶</span> Начать игру</button>
-
-      <div class="duo-tiles">
-        <button class="big-tile" data-go="friends"><span class="bt-ico">🪑</span><span><b>Свой стол</b><small>Позови друзей по коду</small></span></button>
-        <button class="big-tile" data-go="practice"><span class="bt-ico">🤖</span><span><b>Тренировка</b><small>Игра с ботами</small></span></button>
+      <div class="menu">
+        <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
+        <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
+        <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
+        <button class="btn btn-link" data-go="rules">📖 Правила</button>
       </div>
     </section>
 
@@ -45,8 +50,8 @@
     </section>
 
     <!-- Правила (вкладка) -->
-    <section class="screen tab-screen" id="screen-rules">
-      <header class="bar"><h2>Правила</h2></header>
+    <section class="screen" id="screen-rules">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Правила</h2></header>
       <div class="panel rules" id="rules-body"></div>
     </section>
 
@@ -109,7 +114,7 @@
     </section>
 
     <!-- Настройки -->
-    <section class="screen tab-screen" id="screen-settings">
+    <section class="screen" id="screen-settings">
       <header class="bar"><button class="back" data-back>‹</button><h2>Настройки</h2></header>
       <div class="panel settings">
         <label class="opt"><span><b>Звук</b><small>Шелест карт, удары, мелодии</small></span><input type="checkbox" data-set="sound"><i class="sw"></i></label>
@@ -126,7 +131,7 @@
     </section>
 
     <!-- Достижения -->
-    <section class="screen tab-screen" id="screen-achievements">
+    <section class="screen" id="screen-achievements">
       <header class="bar"><button class="back" data-back>‹</button><h2>Достижения</h2></header>
       <div class="stats-row" id="stats-row"></div>
       <ul class="ach-list" id="ach-list"></ul>
@@ -164,12 +169,7 @@
     </section>
   </main>
 
-  <nav class="tabbar" id="tabbar">
-    <button data-tab="home" class="on"><i>🏠</i><span>Игра</span></button>
-    <button data-tab="achievements"><i>🏅</i><span>Награды</span></button>
-    <button data-tab="rules"><i>📖</i><span>Правила</span></button>
-    <button data-tab="settings"><i>⚙️</i><span>Настройки</span></button>
-  </nav>
+
 
   <!-- Модальные окна -->
   <div class="modal" id="modal-suit">

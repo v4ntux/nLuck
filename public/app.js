@@ -52,7 +52,7 @@ const S = {
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setHeaderColor('#efe6d2'); tg.setBackgroundColor('#efe6d2'); } catch {}
+  try { tg.setHeaderColor('#0b0e1a'); tg.setBackgroundColor('#0b0e1a'); tg.setBottomBarColor?.('#0b0e1a'); } catch {}
   try { tg.disableVerticalSwipes?.(); } catch {}
   tg.BackButton?.onClick(goBack);
 }
@@ -111,7 +111,7 @@ function onMessage(m) {
 }
 
 // ---------- навигация ----------
-const TABS = ['home', 'achievements', 'rules', 'settings'];
+const TABS = []; // нижняя панель убрана — все экраны с кнопкой «назад»
 const inLiveGame = () => !!S.game && S.game.phase !== 'gameOver' && !!S.room;
 function show(name, { push = true } = {}) {
   if (S.screen === name) return;
@@ -123,7 +123,7 @@ function show(name, { push = true } = {}) {
   $$('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
   document.body.classList.toggle('has-tabs', tabMode);
   $$('#tabbar [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
-  const canBack = !tabMode && !['game', 'queue'].includes(name);
+  const canBack = !tabMode && !['home', 'game', 'queue'].includes(name);
   if (tg?.BackButton) canBack ? tg.BackButton.show() : tg.BackButton.hide();
 }
 function goBack() {
@@ -223,7 +223,6 @@ function openTab(name) {
   if (name === 'home') renderMeSub();
   show(name);
 }
-$$('#tabbar [data-tab]').forEach(b => b.addEventListener('click', () => { haptic(); sfx.click(); openTab(b.dataset.tab); }));
 // правила во вкладке — тот же текст, что в окне правил
 {
   const src = $('#modal-rules .sheet').cloneNode(true);
@@ -231,7 +230,6 @@ $$('#tabbar [data-tab]').forEach(b => b.addEventListener('click', () => { haptic
   src.querySelector('[data-close]')?.remove();
   $('#rules-body').innerHTML = src.innerHTML;
 }
-document.body.classList.add('has-tabs');
 
 loadProgress().then(() => { checkGoals(); renderMeSub(); if (S.screen === 'achievements') renderAchievements(); });
 document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-card, .mode-tile, .big-tile, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
