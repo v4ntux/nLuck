@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>101 — карточная игра</title>
+  <meta name="theme-color" content="#0b3d2a">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@700;900&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="sprite"></div>
+
+  <main id="app">
+    <!-- Главный экран -->
+    <section class="screen active" id="screen-home">
+      <div class="home-top">
+        <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span id="me-name">…</span></div>
+        <div class="conn" id="conn" title="Соединение"></div>
+      </div>
+      <div class="logo">
+        <div class="logo-fan" id="logo-fan"></div>
+        <h1>101</h1>
+        <p class="tagline">Карточная игра · 36 карт</p>
+      </div>
+      <div class="menu">
+        <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
+        <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
+        <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
+        <button class="btn btn-link" data-modal="rules">📖 Правила</button>
+      </div>
+    </section>
+
+    <!-- Выбор количества игроков для матчмейкинга -->
+    <section class="screen" id="screen-mode">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Поиск игры</h2></header>
+      <p class="hint">Сколько игроков за столом?</p>
+      <div class="size-grid">
+        <button class="size-card" data-queue="2"><b>2</b><span>Дуэль</span></button>
+        <button class="size-card" data-queue="3"><b>3</b><span>Трое</span></button>
+        <button class="size-card" data-queue="4"><b>4</b><span>Полный стол</span></button>
+      </div>
+    </section>
+
+    <!-- Очередь -->
+    <section class="screen" id="screen-queue">
+      <div class="queue-box">
+        <div class="shuffle"><div class="sh sh1"></div><div class="sh sh2"></div><div class="sh sh3"></div></div>
+        <h2>Ищем соперников…</h2>
+        <p class="queue-count" id="queue-count">1 / 2</p>
+        <p class="queue-time" id="queue-time">0:00</p>
+        <button class="btn btn-secondary hidden" id="queue-bots">🤖 Начать с ботами</button>
+        <button class="btn btn-ghost" id="queue-cancel">Отмена</button>
+      </div>
+    </section>
+
+    <!-- Тренировка -->
+    <section class="screen" id="screen-practice">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Тренировка</h2></header>
+      <p class="hint">Сколько ботов посадить за стол?</p>
+      <div class="size-grid">
+        <button class="size-card" data-practice="1"><b>1</b><span>бот</span></button>
+        <button class="size-card" data-practice="2"><b>2</b><span>бота</span></button>
+        <button class="size-card" data-practice="3"><b>3</b><span>бота</span></button>
+      </div>
+    </section>
+
+    <!-- Друзья -->
+    <section class="screen" id="screen-friends">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Игра с друзьями</h2></header>
+      <div class="panel">
+        <h3>Создать стол</h3>
+        <p class="hint">Получишь код и ссылку — отправь друзьям в Telegram.</p>
+        <button class="btn btn-primary" id="room-create">➕ Создать стол</button>
+      </div>
+      <div class="panel">
+        <h3>Войти по коду</h3>
+        <form id="join-form" class="join-row">
+          <input id="join-code" maxlength="5" placeholder="ABCDE" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="btn btn-secondary" type="submit">Войти</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Комната -->
+    <section class="screen" id="screen-room">
+      <header class="bar"><button class="back" id="room-leave">‹</button><h2>Стол друзей</h2></header>
+      <div class="room-code-box">
+        <span class="label">Код стола</span>
+        <button class="room-code" id="room-code" title="Скопировать">-----</button>
+        <button class="btn btn-primary" id="room-share">📨 Пригласить друзей</button>
+      </div>
+      <ul class="seats" id="seats"></ul>
+      <div class="room-actions">
+        <button class="btn btn-ghost" id="room-add-bot">🤖 Добавить бота</button>
+        <button class="btn btn-primary btn-xl" id="room-start">Начать игру</button>
+        <p class="hint center" id="room-wait">Ждём, пока создатель стола начнёт игру…</p>
+      </div>
+    </section>
+
+    <!-- Игровой стол -->
+    <section class="screen" id="screen-game">
+      <div class="table">
+        <header class="game-bar">
+          <button class="icon-btn" id="game-menu" aria-label="Меню">☰</button>
+          <div class="round-label" id="round-label">Раунд 1</div>
+          <button class="icon-btn" id="game-scores" aria-label="Счёт">🏆</button>
+        </header>
+        <div class="opponents" id="opponents"></div>
+        <div class="table-center">
+          <div class="deck" id="deck"><span class="deck-count" id="deck-count">0</span></div>
+          <div class="pile" id="pile"></div>
+          <div class="suit-badge" id="suit-badge"></div>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="me-row">
+          <div class="me-info" id="me-info"></div>
+          <div class="actions">
+            <button class="btn btn-act" id="btn-draw">Взять</button>
+            <button class="btn btn-act" id="btn-pass">Пас</button>
+          </div>
+        </div>
+        <div class="turn-bar"><div id="turn-progress"></div></div>
+        <div class="hand" id="hand"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Модальные окна -->
+  <div class="modal" id="modal-suit">
+    <div class="sheet">
+      <h3>Закажи масть</h3>
+      <div class="suits">
+        <button data-suit="spades" class="suit-btn black">♠</button>
+        <button data-suit="clubs" class="suit-btn black">♣</button>
+        <button data-suit="diamonds" class="suit-btn red">♦</button>
+        <button data-suit="hearts" class="suit-btn red">♥</button>
+      </div>
+      <button class="btn btn-link" data-close>Отмена</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-round">
+    <div class="sheet">
+      <h3 id="round-title">Раунд окончен</h3>
+      <div id="round-body"></div>
+      <p class="hint center" id="round-next">Следующий раунд через несколько секунд…</p>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-over">
+    <div class="sheet">
+      <div class="trophy">🏆</div>
+      <h3 id="over-title">Победа!</h3>
+      <div id="over-body"></div>
+      <button class="btn btn-primary" id="over-again">Ещё раз</button>
+      <button class="btn btn-ghost" id="over-home">В меню</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-scores">
+    <div class="sheet">
+      <h3>Счёт</h3>
+      <div id="scores-body"></div>
+      <button class="btn btn-secondary" data-close>Закрыть</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-menu">
+    <div class="sheet">
+      <h3>Меню</h3>
+      <button class="btn btn-secondary" data-modal="rules">📖 Правила</button>
+      <button class="btn btn-danger" id="game-leave">🚪 Покинуть стол</button>
+      <button class="btn btn-ghost" data-close>Вернуться в игру</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-rules">
+    <div class="sheet rules">
+      <h3>Правила «101»</h3>
+      <p>Колода — <b>36 карт</b>, от шестёрки до туза. Каждому раздаётся по 5 карт, одна открывается на стол.</p>
+      <p>Ходи картой <b>той же масти</b> или <b>того же достоинства</b>. Нечем ходить — бери одну карту из колоды; если она подходит, её можно сразу положить, иначе ход переходит дальше.</p>
+      <h4>Особые карты</h4>
+      <ul>
+        <li><b>6</b> — следующий игрок берёт <b>1 карту</b> и пропускает ход</li>
+        <li><b>7</b> — следующий игрок берёт <b>2 карты</b> и пропускает ход</li>
+        <li><b>Туз</b> — следующий пропускает ход</li>
+        <li><b>Дама</b> — кладётся на любую карту и заказывает масть</li>
+        <li><b>9</b> и <b>10</b> — обычные карты без эффектов</li>
+      </ul>
+      <h4>Подсчёт очков</h4>
+      <p>Раунд заканчивается, когда кто-то сбросил все карты. Остальные получают очки за карты на руке:</p>
+      <table class="pts">
+        <tr><td>6 · 7 · 8 · 9 · 10</td><td>по номиналу</td></tr>
+        <tr><td>Валет</td><td>2</td></tr>
+        <tr><td>Король</td><td>4</td></tr>
+        <tr><td>Туз</td><td>11</td></tr>
+        <tr><td>Дама</td><td>+20</td></tr>
+        <tr><td>Дама ♠</td><td>+40</td></tr>
+        <tr><td>Король ♠</td><td>+80</td></tr>
+      </table>
+      <p>Если закончил раунд <b>K♠</b> — минус 80 очков, <b>Q♠</b> — минус 40, другой дамой — минус 20.</p>
+      <p>Набрал <b>больше 101</b> — вылетаешь. Ровно <b>101</b> — счёт обнуляется. Побеждает последний оставшийся.</p>
+      <button class="btn btn-primary" data-close>Понятно</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
