@@ -234,7 +234,7 @@ $$('#tabbar [data-tab]').forEach(b => b.addEventListener('click', () => { haptic
 document.body.classList.add('has-tabs');
 
 loadProgress().then(() => { checkGoals(); renderMeSub(); if (S.screen === 'achievements') renderAchievements(); });
-document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-tile, .big-tile, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
+document.addEventListener('pointerdown', e => { if (e.target.closest('.btn, .mode-card, .mode-tile, .big-tile, .size-card, .icon-btn, .back, .suit-btn')) sfx.click(); });
 
 $$('[data-go]').forEach(b => b.addEventListener('click', () => {
   haptic();

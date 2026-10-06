@@ -495,3 +495,13 @@ body.has-tabs .tabbar { transform: translate(-50%, 0); }
 #rules-body { margin-top: 4px; }
 #rules-body p:first-child { margin-top: 0; }
 @media (max-height: 700px) { .hero { min-height: 110px; margin: 6px 0 2px; } .hero .logo-fan { height: 100px; } .hero h1 { font-size: 64px; } }
+
+/* кнопка «Начать игру» на главной и экран выбора режима */
+.play-btn { margin-top: 4px; animation: cardIn .55s var(--snap) .1s backwards; }
+.duo-tiles { margin-top: 14px; }
+.mode-card { grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 14px; }
+.mode-card .mc-ico { grid-row: 1 / 3; font-size: 34px; }
+.mode-card .mc-txt { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mode-card .stat { grid-column: 2; }
+.online-line { margin-top: 16px; }
+.online-line::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3f7a3a; margin-right: 6px; border: 1px solid var(--ink); }

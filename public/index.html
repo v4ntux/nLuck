@@ -25,17 +25,23 @@
         <h1>108</h1>
       </div>
 
-      <div class="sect"><h3>Быстрая игра</h3><span id="online-count"></span></div>
-      <div class="mode-tiles">
-        <button class="mode-tile" data-queue="duel"><span class="mt-ico">⚔️</span><b>Дуэль</b><small>1 на 1</small><span class="stat" data-stat="duel"></span></button>
-        <button class="mode-tile" data-queue="trio"><span class="mt-ico">🃏</span><b>Трое</b><small>3 игрока</small><span class="stat" data-stat="trio"></span></button>
-        <button class="mode-tile" data-queue="party"><span class="mt-ico">🎉</span><b>Компания</b><small>4–6 игроков</small><span class="stat" data-stat="party"></span></button>
-      </div>
+      <button class="btn btn-primary btn-xl play-btn" data-go="mode"><span>▶</span> Начать игру</button>
 
       <div class="duo-tiles">
         <button class="big-tile" data-go="friends"><span class="bt-ico">🪑</span><span><b>Свой стол</b><small>Позови друзей по коду</small></span></button>
         <button class="big-tile" data-go="practice"><span class="bt-ico">🤖</span><span><b>Тренировка</b><small>Игра с ботами</small></span></button>
       </div>
+    </section>
+
+    <!-- Матчмейкинг: выбор режима -->
+    <section class="screen" id="screen-mode">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Поиск игры</h2></header>
+      <div class="modes">
+        <button class="mode-card" data-queue="duel"><span class="mc-ico">⚔️</span><span class="mc-txt"><b>Дуэль</b><span class="ppl">1 на 1</span></span><span class="stat" data-stat="duel"></span></button>
+        <button class="mode-card" data-queue="trio"><span class="mc-ico">🃏</span><span class="mc-txt"><b>Трое</b><span class="ppl">3 игрока</span></span><span class="stat" data-stat="trio"></span></button>
+        <button class="mode-card" data-queue="party"><span class="mc-ico">🎉</span><span class="mc-txt"><b>Компания</b><span class="ppl">4–6 игроков</span></span><span class="stat" data-stat="party"></span></button>
+      </div>
+      <p class="hint center online-line" id="online-count"></p>
     </section>
 
     <!-- Правила (вкладка) -->
