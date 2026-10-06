@@ -420,3 +420,6 @@ body.lite .chat-bubble { animation: none !important; transform: translate(-50%, 
 
 .flyer.flipping { background: transparent; box-shadow: none; }
 .flyer.flipping::after { display: none; }
+
+.icon-btn.gear { width: 44px; height: 44px; font-size: 22px; transition: transform .5s var(--spring); }
+.icon-btn.gear:active { transform: rotate(90deg) scale(.92); }
