@@ -1,4 +1,4 @@
-import { SUITS, RANKS, RULES, cardPoints, finishBonus } from './rules.js';
+import { SUITS, RANKS, RULES, handPoints, finishBonus } from './rules.js';
 
 export function makeDeck() {
   const deck = [];
@@ -114,8 +114,6 @@ export class Game {
     if (idx < 0) throw new GameError('Такой карты нет');
     const card = p.hand[idx];
     if (!this.canPlay(card)) throw new GameError('Так нельзя');
-    if (!this.cover && card.rank !== 'Q' && this.hasDrawn && this.drawnCardId && this.drawnCardId !== card.id)
-      throw new GameError('После добора можно положить только взятую карту');
 
     p.hand.splice(idx, 1);
     this.discard.push(card);
@@ -237,7 +235,7 @@ export class Game {
     for (const p of this.active) {
       let delta;
       if (p === winner) delta = -finishBonus(lastCard);
-      else delta = p.hand.reduce((s, c) => s + cardPoints(c), 0);
+      else delta = handPoints(p.hand);
       p.score += delta;
       let note = null;
       if (p.score === this.rules.targetScore) { p.score = 0; note = 'reset'; }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/engine.js';
 import { chooseAction, applyAction } from '../src/game/ai.js';
-import { cardPoints, finishBonus } from '../src/game/rules.js';
+import { cardPoints, handPoints, finishBonus } from '../src/game/rules.js';
 
 const c = (rank, suit) => ({ id: `${rank}-${suit}`, rank, suit });
 
@@ -17,9 +17,14 @@ function setup() {
 test('очки карт', () => {
   assert.equal(cardPoints(c('9', 'clubs')), 9);
   assert.equal(cardPoints(c('10', 'clubs')), 10);
-  assert.equal(cardPoints(c('K', 'spades')), 80);
-  assert.equal(cardPoints(c('Q', 'spades')), 40);
-  assert.equal(cardPoints(c('Q', 'hearts')), 20);
+  assert.equal(cardPoints(c('K', 'spades')), 4);
+  assert.equal(cardPoints(c('Q', 'spades')), 3);
+  assert.equal(cardPoints(c('J', 'hearts')), 2);
+  assert.equal(handPoints([c('K', 'spades')]), 80);           // одна — особо
+  assert.equal(handPoints([c('Q', 'spades')]), 40);
+  assert.equal(handPoints([c('Q', 'hearts')]), 20);
+  assert.equal(handPoints([c('K', 'spades'), c('9', 'clubs')]), 13); // две — обычно
+  assert.equal(handPoints([c('Q', 'spades'), c('K', 'spades')]), 7);
   assert.equal(finishBonus(c('K', 'spades')), 80);
   assert.equal(finishBonus(c('10', 'spades')), 0);
 });
@@ -73,7 +78,7 @@ test('конец раунда: K♠ последней картой даёт −
   g.deck = [c('6', 'clubs'), c('6', 'diamonds'), c('7', 'clubs'), c('8', 'clubs')];
   g.play('a', 'K-spades');
   assert.equal(g.players[0].score, -80);
-  assert.equal(g.players[1].score, 29 + 27); // ещё и взял 4 карты за K♠
+  assert.equal(g.players[1].score, 3 + 9 + 27); // дама с другой картой — 3; плюс 4 взятые за K♠
   assert.equal(g.players[2].score, 10);
   assert.equal(g.phase, 'roundOver');
 });
@@ -89,14 +94,13 @@ test('ровно 108 обнуляет, больше — вылет', () => {
   assert.equal(g.players[2].out, true);
 });
 
-test('после добора можно сыграть только взятую карту или пасовать', () => {
+test('после добора можно положить любую подходящую карту', () => {
   const g = setup();
-  g.players[0].hand = [c('9', 'clubs')];
-  g.deck.push(c('10', 'hearts'));
+  g.players[0].hand = [c('9', 'clubs'), c('J', 'hearts')];
+  g.deck.push(c('10', 'spades'));
   g.draw('a');
   assert.equal(g.current.id, 'a');
-  assert.throws(() => g.play('a', '9-clubs'));
-  g.pass('a');
+  g.play('a', 'J-hearts');                    // не обязательно взятую
   assert.equal(g.current.id, 'b');
 });
 
@@ -254,4 +258,14 @@ test('дама — в любой момент: на 8 и после добора
   g.play('c', '6-hearts');
   g.players[0].hand = [c('Q', 'spades'), c('9', 'clubs')];
   assert.throws(() => g.play('a', 'Q-spades')); // штраф за 6 — даму нельзя
+});
+
+test('одна особая карта на руке в конце раунда — +80/+40/+20, больше карт — обычный счёт', () => {
+  const g = setup();
+  g.players[0].hand = [c('9', 'hearts')];
+  g.players[1].hand = [c('K', 'spades')];
+  g.players[2].hand = [c('Q', 'clubs'), c('6', 'diamonds')];
+  g.play('a', '9-hearts');
+  assert.equal(g.players[1].score, 80);
+  assert.equal(g.players[2].score, 9);
 });

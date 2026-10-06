@@ -647,7 +647,6 @@ function hintPlayable(c, g) {
   if (g.pending) return c.rank === g.pending.rank;
   if (c.rank === 'Q') return true;
   if (g.cover) return c.rank === '8' || c.suit === g.cover;
-  if (g.hasDrawn && g.drawnCardId && c.id !== g.drawnCardId) return false;
   return c.suit === g.suit || c.rank === g.top.rank;
 }
 

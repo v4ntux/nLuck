@@ -19,16 +19,28 @@ export const RULES = {
   queenIsWild: true,    // дама кладётся на любую карту и заказывает масть
 };
 
-// Очки за карту, оставшуюся на руке в конце раунда
+// Обычные очки за карту на руке в конце раунда
 export function cardPoints(card) {
-  if (card.rank === 'K' && card.suit === 'spades') return 80;
-  if (card.rank === 'Q') return card.suit === 'spades' ? 40 : 20;
   switch (card.rank) {
     case 'J': return 2;
+    case 'Q': return 3;
     case 'K': return 4;
     case 'A': return 11;
     default: return Number(card.rank); // 6,7,8,9,10 — номинал (9 = 9, не 0)
   }
+}
+
+// Особая карта (K♠ 80, Q♠ 40, другая дама 20) — считается особо, только если она одна
+export function specialPoints(card) {
+  if (card.rank === 'K' && card.suit === 'spades') return 80;
+  if (card.rank === 'Q') return card.suit === 'spades' ? 40 : 20;
+  return 0;
+}
+
+// Очки за руку: одна особая карта — +80/+40/+20, иначе всё по обычной таблице
+export function handPoints(hand) {
+  if (hand.length === 1 && specialPoints(hand[0])) return specialPoints(hand[0]);
+  return hand.reduce((s, c) => s + cardPoints(c), 0);
 }
 
 // Бонус (вычитается из счёта), если игрок закончил раунд этой картой
