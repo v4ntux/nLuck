@@ -23,6 +23,7 @@ export async function startBot(token, webAppUrl) {
   const safe = p => p.catch(e => console.error('setup:', e.description || e.message));
   await Promise.all([
     safe(bot.api.deleteMyCommands()),
+    safe(bot.api.setMyName('nLuck — карточный клуб')),
     safe(bot.api.setMyShortDescription('🃏 nLuck — карточный клуб: 108, Дурак, Бура, Покер, Блэкджек прямо в Telegram')),
     safe(bot.api.setMyDescription(
       '🃏 nLuck — карточный клуб: 108, Дурак, Бура, Покер и Блэкджек. Матчмейкинг, столы с друзьями, боты, монеты, профиль и достижения — всё внутри. Жми «Старт»!',
