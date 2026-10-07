@@ -1,7 +1,7 @@
 {
-  "name": "karta-108",
+  "name": "nluck",
   "version": "1.0.0",
-  "description": "Карточная игра 108 — Telegram Web App с матчмейкингом и игрой с друзьями",
+  "description": "nLuck — карточный клуб в Telegram: 108, Дурак, Бура, Покер, Блэкджек",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

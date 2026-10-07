@@ -1,4 +1,5 @@
 import { SUITS, RANKS, RULES, handPoints, finishBonus } from './rules.js';
+import { chooseAction } from './ai.js';
 
 export function makeDeck() {
   const deck = [];
@@ -277,6 +278,17 @@ export class Game {
       this.advance(this.nextIndex(this.turn));
     }
   }
+
+  // ---- общий интерфейс игр платформы ----
+  act(pid, msg) {
+    if (msg.type === 'play') return this.play(pid, msg.cardId, msg.suit);
+    if (msg.type === 'draw') return this.draw(pid);
+    if (msg.type === 'pass') return this.pass(pid);
+    throw new GameError('Неизвестное действие');
+  }
+  waiting() { return this.phase === 'playing' ? [this.current.id] : []; }
+  botMove(pid) { return chooseAction(this, pid); }
+  result() { return { winners: this.winnerId ? [this.winnerId] : [], losers: this.players.filter(p => p.id !== this.winnerId).map(p => p.id) }; }
 
   /** Состояние, которое видит конкретный игрок */
   view(forId) {

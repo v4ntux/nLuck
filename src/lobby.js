@@ -1,25 +1,27 @@
-import { Game, GameError } from './game/engine.js';
-import { chooseAction, applyAction } from './game/ai.js';
+import { GameError } from './game/engine.js';
+import { GAMES } from './games/index.js';
+import * as db from './db.js';
 
 const BOT_NAMES = ['Бот Вася', 'Бот Маша', 'Бот Петя', 'Бот Оля', 'Бот Гоша', 'Бот Катя'];
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const ROUND_PAUSE_MS = 7000;
-const MAX_PLAYERS = 6;
+const AFK_MS = 60_000;
 // Чат только из готовых эмодзи и фраз — без модерации и спама
 export const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '🔥', '💩', '🙏', '🤝',
   'Удачи!', 'Ну ты даёшь!', 'Быстрее!', 'Ха-ха', 'Не повезло', 'Хорош!', 'Ещё партию?', 'GG'];
-export const MODES = {
-  duel: { min: 2, max: 2 },
-  trio: { min: 3, max: 3 },
-  party: { min: 4, max: 6, waitMs: 15000 },
-};
+
+const gameDef = id => { const g = GAMES[id]; if (!g) throw new LobbyError('Нет такой игры'); return g; };
 
 export class Lobby {
   constructor() {
     this.users = new Map();  // userId -> { id, name, photo, ws, roomCode }
     this.rooms = new Map();  // code -> room
-    this.queues = { duel: [], trio: [], party: [] };
+    this.queues = {};        // `${game}:${mode}` -> [{ id, since }]
     this.modeTimers = {};
+    // банк монет для игр, где ставки внутри (блэкджек)
+    this.bank = {
+      balance: id => db.balance(id),
+      add: (id, delta) => { db.addCoins(id, delta); this.sendProfile(id); },
+    };
   }
 
   // ---------- соединения ----------
@@ -29,7 +31,9 @@ export class Lobby {
     if (u?.ws && u.ws !== ws) { try { u.ws.close(4000, 'replaced'); } catch {} }
     u = { ...(u || {}), ...profile, ws };
     this.users.set(u.id, u);
+    db.ensureUser(u);
     this.send(u, { type: 'welcome', me: { id: u.id, name: u.name, photo: u.photo } });
+    this.sendProfile(u.id);
     this.send(u, this.stats());
     this.statsChanged();
     const room = u.roomCode && this.rooms.get(u.roomCode);
@@ -53,23 +57,30 @@ export class Lobby {
   send(u, msg) {
     if (u?.ws && u.ws.readyState === 1) u.ws.send(JSON.stringify(msg));
   }
+  sendProfile(id) { const u = this.users.get(id); if (u) this.send(u, { type: 'profile', profile: db.profile(id) }); }
 
   handle(user, msg) {
     try {
       switch (msg.type) {
-        case 'queue': return this.joinQueue(user, String(msg.mode));
+        case 'queue': return this.joinQueue(user, String(msg.game || '108'), String(msg.mode));
         case 'queue_cancel': return this.leaveQueue(user, true);
         case 'queue_bots': return this.queueWithBots(user);
-        case 'practice': return this.practice(user, Number(msg.bots));
-        case 'room_create': return this.createRoom(user);
+        case 'practice': return this.practice(user, String(msg.game || '108'), Number(msg.bots));
+        case 'room_create': return this.createRoom(user, String(msg.game || '108'));
         case 'room_join': return this.joinRoom(user, String(msg.code || '').toUpperCase().trim());
         case 'room_leave': return this.leaveRoom(user);
         case 'room_add_bot': return this.addBot(user);
         case 'room_remove_bot': return this.removeBot(user, msg.id);
         case 'room_start': return this.startRoom(user);
         case 'rematch': return this.rematch(user);
-        case 'play': case 'draw': case 'pass': return this.gameAction(user, msg);
+        case 'act': return this.gameAction(user, msg.a || {});
+        case 'play': case 'draw': case 'pass': return this.gameAction(user, msg); // «108»
         case 'chat': return this.chat(user, Number(msg.e));
+        case 'bonus': {
+          const r = db.claimBonus(user.id);
+          this.send(user, { type: 'bonus', ...r });
+          return this.sendProfile(user.id);
+        }
         case 'ping': return this.send(user, { type: 'pong' });
       }
     } catch (e) {
@@ -80,90 +91,107 @@ export class Lobby {
 
   // ---------- матчмейкинг ----------
 
-  joinQueue(user, mode) {
-    if (!MODES[mode]) throw new LobbyError('Неверный режим');
+  joinQueue(user, gameId, mode) {
+    const def = gameDef(gameId);
+    if (!def.modes[mode]) throw new LobbyError('Неверный режим');
+    if (db.balance(user.id) < def.stake) throw new LobbyError(`Нужно ${def.stake} монет для ставки — заберите бонус в профиле`);
     if (user.roomCode) this.leaveRoom(user);
     this.leaveQueue(user);
-    this.queues[mode].push({ id: user.id, since: Date.now() });
-    user.queueMode = mode;
-    this.flushQueue(mode);
+    const key = `${gameId}:${mode}`;
+    (this.queues[key] ||= []).push({ id: user.id, since: Date.now() });
+    user.queueKey = key;
+    this.flushQueue(key);
   }
 
   leaveQueue(user, notify = false) {
-    for (const mode of Object.keys(this.queues)) {
-      const q = this.queues[mode];
+    for (const key of Object.keys(this.queues)) {
+      const q = this.queues[key];
       const i = q.findIndex(e => e.id === user.id);
-      if (i >= 0) { q.splice(i, 1); this.flushQueue(mode); }
+      if (i >= 0) { q.splice(i, 1); this.flushQueue(key); }
     }
-    user.queueMode = null;
+    user.queueKey = null;
     if (notify) this.send(user, { type: 'queue', mode: null });
   }
 
-  flushQueue(mode) {
-    const m = MODES[mode], q = this.queues[mode];
-    while (q.length >= m.max) this.startGroup(mode, q.splice(0, m.max));
+  flushQueue(key) {
+    const [gameId, mode] = key.split(':');
+    const m = GAMES[gameId].modes[mode], q = (this.queues[key] ||= []);
+    while (q.length >= m.max) this.startGroup(gameId, mode, q.splice(0, m.max));
     if (m.waitMs) {
-      // 4–6 игроков: набралось минимум — ждём ещё немного, вдруг подойдут остальные
-      if (q.length >= m.min && !this.modeTimers[mode]) {
+      // «компания»: набралось минимум — ждём ещё немного, вдруг подойдут остальные
+      if (q.length >= m.min && !this.modeTimers[key]) {
         const startsAt = Date.now() + m.waitMs;
-        this.modeTimers[mode] = { startsAt, timer: setTimeout(() => {
-          this.modeTimers[mode] = null;
-          if (q.length >= m.min) this.startGroup(mode, q.splice(0, m.max));
-          this.flushQueue(mode);
+        this.modeTimers[key] = { startsAt, timer: setTimeout(() => {
+          this.modeTimers[key] = null;
+          if (q.length >= m.min) this.startGroup(gameId, mode, q.splice(0, m.max));
+          this.flushQueue(key);
         }, m.waitMs) };
-      } else if (q.length < m.min && this.modeTimers[mode]) {
-        clearTimeout(this.modeTimers[mode].timer);
-        this.modeTimers[mode] = null;
+      } else if (q.length < m.min && this.modeTimers[key]) {
+        clearTimeout(this.modeTimers[key].timer);
+        this.modeTimers[key] = null;
       }
     }
-    this.broadcastQueue(mode);
+    this.broadcastQueue(key);
     this.statsChanged();
   }
 
-  startGroup(mode, entries) {
+  startGroup(gameId, mode, entries, { bots = 0 } = {}) {
     const group = entries.map(e => this.users.get(e.id)).filter(Boolean);
     if (!group.length) return;
-    group.forEach(u => (u.queueMode = null));
-    const room = this.newRoom(group[0].id, false);
+    group.forEach(u => (u.queueKey = null));
+    const room = this.newRoom(group[0].id, false, gameId);
     room.mode = mode;
     for (const u of group) this.seat(room, u);
+    for (let i = 0; i < bots; i++) this.seatBot(room);
     while (room.seats.length < 2) this.seatBot(room);
     this.start(room);
   }
 
-  broadcastQueue(mode) {
-    const m = MODES[mode], q = this.queues[mode];
-    const startsAt = this.modeTimers[mode]?.startsAt ?? null;
-    for (const e of q) this.send(this.users.get(e.id), { type: 'queue', mode, count: q.length, min: m.min, max: m.max, startsAt, now: Date.now() });
+  broadcastQueue(key) {
+    const [gameId, mode] = key.split(':');
+    const m = GAMES[gameId].modes[mode], q = this.queues[key] || [];
+    const startsAt = this.modeTimers[key]?.startsAt ?? null;
+    for (const e of q) this.send(this.users.get(e.id), { type: 'queue', game: gameId, mode, count: q.length, min: m.min, max: m.max, startsAt, now: Date.now() });
   }
 
   queueWithBots(user) {
-    const mode = user.queueMode;
-    if (!mode) throw new LobbyError('Вы не в поиске');
-    // Забираем всех ждущих этого режима + добиваем ботами до минимума
-    const m = MODES[mode], q = this.queues[mode];
+    const key = user.queueKey;
+    if (!key) throw new LobbyError('Вы не в поиске');
+    const [gameId, mode] = key.split(':');
+    const m = GAMES[gameId].modes[mode], q = this.queues[key];
     const entries = q.splice(0, m.max);
-    if (this.modeTimers[mode]) { clearTimeout(this.modeTimers[mode].timer); this.modeTimers[mode] = null; }
-    const group = entries.map(e => this.users.get(e.id)).filter(Boolean);
-    group.forEach(u => (u.queueMode = null));
-    const room = this.newRoom(user.id, false);
-    room.mode = mode;
-    for (const u of group) this.seat(room, u);
-    while (room.seats.length < m.min) this.seatBot(room);
+    if (this.modeTimers[key]) { clearTimeout(this.modeTimers[key].timer); this.modeTimers[key] = null; }
+    this.startGroup(gameId, mode, entries, { bots: Math.max(0, m.min - entries.length) });
+    this.flushQueue(key);
+  }
+
+  practice(user, gameId, bots) {
+    const def = gameDef(gameId);
+    bots = def.solo ? 0 : Math.min(Math.max(bots || 1, 1), def.max - 1);
+    this.leaveQueue(user);
+    if (user.roomCode) this.leaveRoom(user);
+    const room = this.newRoom(user.id, true, gameId);
+    room.practice = true;
+    this.seat(room, user);
+    for (let i = 0; i < bots; i++) this.seatBot(room);
     this.start(room);
-    this.flushQueue(mode);
   }
 
   stats() {
-    const modes = {};
-    for (const mode of Object.keys(MODES)) modes[mode] = { searching: this.queues[mode].length, playing: 0 };
+    const games = {};
+    for (const [gid, def] of Object.entries(GAMES)) {
+      games[gid] = { playing: 0, modes: {} };
+      for (const mode of Object.keys(def.modes)) games[gid].modes[mode] = { searching: (this.queues[`${gid}:${mode}`] || []).length, playing: 0 };
+    }
     for (const room of this.rooms.values()) {
-      if (!room.mode || !room.game || room.game.phase === 'gameOver') continue;
-      modes[room.mode].playing += room.seats.filter(s => !s.bot).length;
+      if (!room.game || room.game.phase === 'gameOver') continue;
+      const humans = room.seats.filter(s => !s.bot).length;
+      games[room.gameId].playing += humans;
+      if (room.mode) games[room.gameId].modes[room.mode].playing += humans;
     }
     let online = 0;
     for (const u of this.users.values()) if (u.ws) online++;
-    return { type: 'stats', modes, online };
+    return { type: 'stats', games, online };
   }
 
   /** Счётчики «играют / ищут» — всем, не чаще раза в 0.5 с */
@@ -176,24 +204,14 @@ export class Lobby {
     }, 500);
   }
 
-  practice(user, bots) {
-    bots = Math.min(Math.max(bots || 1, 1), 5);
-    this.leaveQueue(user);
-    if (user.roomCode) this.leaveRoom(user);
-    const room = this.newRoom(user.id, true);
-    this.seat(room, user);
-    for (let i = 0; i < bots; i++) this.seatBot(room);
-    this.start(room);
-  }
-
   // ---------- комнаты ----------
 
-  newRoom(hostId, isPrivate) {
+  newRoom(hostId, isPrivate, gameId) {
     let code;
     do {
       code = Array.from({ length: 5 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
-    const room = { code, hostId, private: isPrivate, seats: [], game: null, timer: null };
+    const room = { code, hostId, private: isPrivate, gameId, seats: [], game: null, timer: null };
     this.rooms.set(code, room);
     return room;
   }
@@ -210,9 +228,10 @@ export class Lobby {
     room.seats.push({ id: 'bot-' + Math.random().toString(36).slice(2, 8), name, photo: null, bot: true });
   }
 
-  createRoom(user) {
+  createRoom(user, gameId) {
+    gameDef(gameId);
     this.leaveQueue(user);
-    const room = this.newRoom(user.id, true);
+    const room = this.newRoom(user.id, true, gameId);
     this.seat(room, user);
     this.sendRoom(room);
   }
@@ -220,11 +239,14 @@ export class Lobby {
   joinRoom(user, code) {
     const room = this.rooms.get(code);
     if (!room) throw new LobbyError('Комната не найдена');
+    const def = GAMES[room.gameId];
     if (room.seats.find(s => s.id === user.id)) { user.roomCode = code; this.sendRoom(room); if (room.game) this.sendGame(room, user.id); return; }
-    if (room.game && room.game.phase !== 'gameOver') throw new LobbyError('Игра уже идёт');
-    if (room.seats.length >= MAX_PLAYERS) throw new LobbyError('Стол заполнен');
+    if (room.seats.length >= def.max) throw new LobbyError('Стол заполнен');
+    const live = room.game && room.game.phase !== 'gameOver';
+    if (live && !def.joinAnytime) throw new LobbyError('Игра уже идёт');
     this.leaveQueue(user);
     this.seat(room, user);
+    if (live) { room.game.addPlayer({ id: user.id, name: user.name }); this.broadcastGame(room); }
     this.sendRoom(room);
   }
 
@@ -237,6 +259,7 @@ export class Lobby {
     room.seats = room.seats.filter(s => s.id !== user.id);
     if (room.game && room.game.phase !== 'gameOver') {
       room.game.removePlayer(user.id);
+      if (room.game.phase === 'gameOver') this.settle(room);
       this.broadcastGame(room);
       this.schedule(room);
     }
@@ -253,8 +276,10 @@ export class Lobby {
 
   addBot(user) {
     const room = this.ownRoom(user);
+    const def = GAMES[room.gameId];
+    if (def.solo) throw new LobbyError('В этой игре ботов нет — играете против дилера');
     if (room.game && room.game.phase !== 'gameOver') throw new LobbyError('Игра уже идёт');
-    if (room.seats.length >= MAX_PLAYERS) throw new LobbyError('Стол заполнен');
+    if (room.seats.length >= def.max) throw new LobbyError('Стол заполнен');
     this.seatBot(room);
     this.sendRoom(room);
   }
@@ -275,7 +300,8 @@ export class Lobby {
 
   startRoom(user) {
     const room = this.ownRoom(user);
-    if (room.seats.length < 2) throw new LobbyError('Нужно минимум 2 игрока — позовите друга или добавьте бота');
+    const def = GAMES[room.gameId];
+    if (room.seats.length < def.min) throw new LobbyError(`Нужно минимум ${def.min} игрока — позовите друга или добавьте бота`);
     this.start(room);
   }
 
@@ -283,22 +309,47 @@ export class Lobby {
     const room = user.roomCode && this.rooms.get(user.roomCode);
     if (!room || room.game?.phase !== 'gameOver') return;
     if (!room.private) {
-      // В публичной игре «ещё раз» = снова в поиск
-      const mode = room.mode || 'duel';
+      const { gameId, mode } = room;
       this.leaveRoom(user);
-      return this.joinQueue(user, mode);
+      return this.joinQueue(user, gameId, mode || 'duel');
     }
     if (room.hostId !== user.id) throw new LobbyError('Новую партию запускает создатель стола');
     room.seats = room.seats.filter(s => s.bot || this.users.get(s.id)?.roomCode === room.code);
-    if (room.seats.length < 2) throw new LobbyError('Нужно минимум 2 игрока');
+    if (room.seats.length < GAMES[room.gameId].min) throw new LobbyError('Не хватает игроков');
     this.start(room);
   }
 
   start(room) {
-    room.game = new Game(room.seats.map(s => ({ id: s.id, name: s.name })));
+    const def = GAMES[room.gameId];
+    const humans = room.seats.filter(s => !s.bot);
+    // Ставка — только в матчмейкинге, где все живые. С ботами и с друзьями — на интерес
+    room.stake = !room.private && !room.practice && humans.length === room.seats.length ? def.stake : 0;
+    if (room.stake) for (const s of humans) { db.addCoins(s.id, -room.stake); this.sendProfile(s.id); }
+    room.settled = false;
+    room.payouts = null;
+    room.game = def.create(room.seats.map(s => ({ id: s.id, name: s.name })), { bank: this.bank });
     this.sendRoom(room);
     this.broadcastGame(room);
     this.schedule(room);
+  }
+
+  /** Итог партии: выплаты из банка стола и статистика */
+  settle(room) {
+    if (room.settled || !room.game) return;
+    room.settled = true;
+    if (GAMES[room.gameId].solo) return;
+    const { winners, losers } = room.game.result();
+    const humans = room.seats.filter(s => !s.bot).map(s => s.id);
+    const payouts = {};
+    if (room.stake) {
+      const pot = room.stake * room.game.players.filter(p => !String(p.id).startsWith('bot-')).length;
+      const paid = winners.length ? winners : room.game.players.map(p => p.id); // ничья — возврат
+      const share = Math.floor(pot / paid.length);
+      for (const id of paid) { db.addCoins(id, share); payouts[id] = share - room.stake; }
+      for (const id of losers) if (!(id in payouts)) payouts[id] = -room.stake;
+    }
+    for (const id of humans) { db.recordGame(id, room.gameId, winners.includes(id)); this.sendProfile(id); }
+    room.payouts = payouts;
   }
 
   chat(user, e) {
@@ -319,9 +370,9 @@ export class Lobby {
     if (Math.random() > 0.22) return;
     let pool = null;
     for (const ev of events) {
-      if (ev.type === 'penalty' && ev.playerId === botId) pool = [2, 3, 4];        // 😡 😭 🤔
-      else if (ev.type === 'penalty') pool = [5, 1, 0];                            // 😈 😎 😂
-      else if (ev.type === 'roundEnd' && ev.winnerId === botId) pool = [1, 8, 0];  // 😎 🔥 😂
+      if ((ev.type === 'penalty' || ev.type === 'took') && ev.playerId === botId) pool = [2, 3, 4]; // 😡 😭 🤔
+      else if (ev.type === 'penalty') pool = [5, 1, 0];                                          // 😈 😎 😂
+      else if ((ev.type === 'roundEnd' || ev.type === 'gameOver') && ev.winnerId === botId) pool = [1, 8, 0];
       else if (ev.type === 'lastCard' && ev.playerId === botId) pool = [5, 1];
     }
     if (pool) setTimeout(() => this.chatSend(room, botId, pool[Math.floor(Math.random() * pool.length)]), 600 + Math.random() * 900);
@@ -332,36 +383,38 @@ export class Lobby {
   gameAction(user, msg) {
     const room = user.roomCode && this.rooms.get(user.roomCode);
     if (!room?.game) throw new LobbyError('Нет активной игры');
-    if (msg.type === 'play') room.game.play(user.id, msg.cardId, msg.suit);
-    else if (msg.type === 'draw') room.game.draw(user.id);
-    else room.game.pass(user.id);
+    room.game.act(user.id, msg);
+    this.afterAction(room);
+  }
+
+  afterAction(room) {
+    if (room.game.phase === 'gameOver') this.settle(room);
     this.broadcastGame(room);
     this.schedule(room);
   }
 
-  /** Планирует следующий автоматический шаг: ход бота, авто-ход по таймеру или следующий раунд */
+  /** Следующий автоматический шаг: ход бота, ход за отключившегося или следующий раунд */
   schedule(room) {
     clearTimeout(room.timer);
     const g = room.game;
     if (!g || g.phase === 'gameOver') return;
+    const def = GAMES[room.gameId];
     if (g.phase === 'roundOver') {
-      room.timer = setTimeout(() => { g.nextRound(); this.broadcastGame(room); this.schedule(room); }, ROUND_PAUSE_MS);
+      room.timer = setTimeout(() => { g.nextRound(); this.afterAction(room); }, def.roundPause);
       return;
     }
-    const cur = g.current;
-    const seat = room.seats.find(s => s.id === cur.id);
-    const online = seat && !seat.bot && this.users.get(seat.id)?.ws;
-    let delay;
-    if (!seat || seat.bot) delay = 650 + Math.random() * 450;
-    else if (!online) delay = g.rules.afkSeconds * 1000; // за отключившегося — только через минуту
-    else return; // живой игрок ходит сам, никаких авто-ходов
+    const waiting = g.waiting();
+    const isBot = id => room.seats.find(s => s.id === id)?.bot ?? true;
+    const online = id => !!this.users.get(id)?.ws;
+    let who = waiting.find(isBot), delay = 650 + Math.random() * 500;
+    if (!who) { who = waiting.find(id => !online(id)); delay = AFK_MS; }
+    if (!who) return; // живые игроки ходят сами — никаких авто-ходов
+    const seq = g.eventSeq;
     room.timer = setTimeout(() => {
-      if (room.game !== g || g.phase !== 'playing' || g.current !== cur) return;
-      const seq = g.eventSeq;
-      try { applyAction(g, cur.id, chooseAction(g, cur.id)); } catch (e) { console.error('auto move', e); g.advance(g.nextIndex(g.turn)); }
-      if (seat?.bot) for (const s of room.seats.filter(x => x.bot)) this.botReact(room, s.id, g.log.filter(e => e.seq > seq));
-      this.broadcastGame(room);
-      this.schedule(room);
+      if (room.game !== g || g.phase !== 'playing' || !g.waiting().includes(who)) return this.schedule(room);
+      try { g.act(who, g.botMove(who)); } catch (e) { console.error('auto move', room.gameId, e.message); }
+      for (const s of room.seats.filter(x => x.bot)) this.botReact(room, s.id, g.log.filter(e => e.seq > seq));
+      this.afterAction(room);
     }, delay);
   }
 
@@ -382,11 +435,10 @@ export class Lobby {
   // ---------- рассылка ----------
 
   roomInfo(room) {
+    const def = GAMES[room.gameId];
     return {
-      code: room.code,
-      hostId: room.hostId,
-      private: room.private,
-      mode: room.mode || null,
+      code: room.code, game: room.gameId, hostId: room.hostId, private: room.private, practice: !!room.practice,
+      mode: room.mode || null, stake: room.stake || 0, min: def.min, max: def.max, solo: !!def.solo,
       inGame: !!room.game && room.game.phase !== 'gameOver',
       seats: room.seats.map(s => ({ ...s, online: s.bot || !!this.users.get(s.id)?.ws })),
     };
@@ -399,8 +451,11 @@ export class Lobby {
 
   sendGame(room, userId, events = []) {
     const view = room.game.view(userId);
+    view.game = room.gameId;
     view.events = events;
     view.seats = this.roomInfo(room).seats;
+    view.stake = room.stake || 0;
+    view.payouts = room.payouts;
     view.now = Date.now();
     this.send(this.users.get(userId), { type: 'game', game: view });
   }

@@ -1,6 +1,8 @@
 import { SPRITE, cardEl, SUIT_SYMBOL, SUIT_NAME, isRed, rankLabel } from './cards.js';
 import { sfx, setMuted } from './sound.js';
 import { settings, saveSettings, BACKS, ACHIEVEMENTS, progress, loadProgress, saveProgress } from './store.js';
+import { GAMES, GAME } from './games-info.js';
+import { initTable, onTableGame, resetTableUI, chatHost, rerender as rerenderTable } from './table.js';
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -106,13 +108,15 @@ function onMessage(m) {
     case 'stats': onStats(m); break;
     case 'chat': onChat(m); break;
     case 'room': onRoom(m.room); break;
-    case 'game': onGame(m.game); break;
+    case 'game': if (m.game.game && m.game.game !== '108') onTable(m.game); else onGame(m.game); break;
+    case 'profile': onProfile(m.profile); break;
+    case 'bonus': if (m.ok) { toast(`🎁 +${m.amount} монет!`); sfx.win(); haptic('success'); } else toast('Бонус уже забран — загляни позже'); break;
   }
 }
 
 // ---------- навигация ----------
 const TABS = []; // нижняя панель убрана — все экраны с кнопкой «назад»
-const inLiveGame = () => !!S.game && S.game.phase !== 'gameOver' && !!S.room;
+const inLiveGame = () => !!S.room && ((!!S.game && S.game.phase !== 'gameOver') || (!!S.tgame && S.tgame.phase !== 'gameOver'));
 function show(name, { push = true } = {}) {
   if (S.screen === name) return;
   // вкладки нижней панели — без истории; из игры настройки открываются с кнопкой «назад»
@@ -128,7 +132,7 @@ function show(name, { push = true } = {}) {
 }
 function goBack() {
   if (S.screen === 'room') return leaveRoom();
-  if (inLiveGame() && S.screen !== 'game') return show('game', { push: false });
+  if (inLiveGame() && !['game', 'table'].includes(S.screen)) return show(S.tgame ? 'table' : 'game', { push: false });
   if (S.screen === 'queue') return send({ type: 'queue_cancel' });
   show(S.history.pop() || 'home', { push: false });
 }
@@ -213,9 +217,8 @@ function checkGoals() {
   for (const a of ACHIEVEMENTS) if (a.goal) { const [c, m] = a.goal(progress.stats); if (c >= m) unlock(a.id); }
 }
 function renderMeSub() {
-  const st = progress.stats;
-  const done = ACHIEVEMENTS.filter(a => progress.unlocked[a.id]).length;
-  $('#me-sub').textContent = st.games ? `🏆 ${st.wins} · 🏅 ${done}/${ACHIEVEMENTS.length}` : 'новичок';
+  const p = S.profile;
+  $('#me-sub').textContent = p ? `Уровень ${p.level}` : 'новичок';
 }
 function openTab(name) {
   if (name === 'settings') renderSettings();
@@ -223,12 +226,16 @@ function openTab(name) {
   if (name === 'home') renderMeSub();
   show(name);
 }
-// правила во вкладке — тот же текст, что в окне правил
-{
-  const src = $('#modal-rules .sheet').cloneNode(true);
-  src.querySelector('h3')?.remove();
-  src.querySelector('[data-close]')?.remove();
-  $('#rules-body').innerHTML = src.innerHTML;
+// правила выбранной игры
+function renderRules(gid = S.gameId) {
+  const g = GAME[gid];
+  $('#rules-title').textContent = `Правила: ${g.name}`;
+  if (g.rulesFrom) {
+    const src = $(g.rulesFrom + ' .sheet').cloneNode(true);
+    src.querySelector('h3')?.remove();
+    src.querySelector('[data-close]')?.remove();
+    $('#rules-body').innerHTML = src.innerHTML;
+  } else $('#rules-body').innerHTML = g.rules;
 }
 
 loadProgress().then(() => { checkGoals(); renderMeSub(); if (S.screen === 'achievements') renderAchievements(); });
@@ -238,6 +245,8 @@ $$('[data-go]').forEach(b => b.addEventListener('click', () => {
   haptic();
   if (b.dataset.go === 'settings') renderSettings();
   if (b.dataset.go === 'achievements') renderAchievements();
+  if (b.dataset.go === 'rules') renderRules();
+  if (b.dataset.go === 'profile') renderProfile();
   show(b.dataset.go);
 }));
 $$('[data-back]').forEach(b => b.addEventListener('click', goBack));
@@ -272,28 +281,168 @@ function renderMe() {
   renderMeSub();
   $('#me-avatar').replaceWith(Object.assign(avatar(S.me), { id: 'me-avatar' }));
 }
-(function logoFan() {
-  const fan = $('#logo-fan');
-  [['A', 'spades'], ['K', 'hearts'], ['Q', 'clubs'], ['6', 'diamonds']].forEach(([rank, suit], i) => {
-    const el = cardEl({ id: rank + suit, rank, suit });
-    el.style.transform = `translateX(-50%) rotate(${(i - 1.5) * 14}deg)`;
-    el.style.animationDelay = `${i * 0.12}s`;
-    fan.appendChild(el);
+// ---------- переключатель игр (карусель) ----------
+S.gameId = (() => { try { const g = localStorage.getItem('game'); return GAME[g] ? g : '108'; } catch { return '108'; } })();
+(function buildCarousel() {
+  const box = $('#carousel'), dots = $('#dots');
+  GAMES.forEach((g, gi) => {
+    const el = document.createElement('div');
+    el.className = 'game-card';
+    el.dataset.id = g.id;
+    el.style.setProperty('--gc', g.color);
+    const fan = document.createElement('div');
+    fan.className = 'gc-fan';
+    g.fan.forEach(([rank, suit], i) => {
+      const c = cardEl({ id: `${g.id}-${rank}${suit}`, rank, suit });
+      const mid = (g.fan.length - 1) / 2;
+      c.style.transform = `translateX(-50%) rotate(${(i - mid) * 13}deg)`;
+      fan.appendChild(c);
+    });
+    el.appendChild(fan);
+    el.insertAdjacentHTML('beforeend', `<div class="gc-txt"><b>${g.name}</b><span>${g.tagline}</span><small>${g.players}<em data-live="${g.id}"></em></small></div>`);
+    el.onclick = () => { if (S.gameId !== g.id) { box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.clientWidth) / 2, behavior: 'smooth' }); } };
+    box.appendChild(el);
+    const d = document.createElement('i');
+    d.onclick = () => el.onclick();
+    dots.appendChild(d);
+    void gi;
+  });
+  let raf;
+  box.addEventListener('scroll', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const mid = box.scrollLeft + box.clientWidth / 2;
+      let best = null, bd = 1e9;
+      for (const el of box.children) { const d = Math.abs(el.offsetLeft + el.clientWidth / 2 - mid); if (d < bd) { bd = d; best = el; } }
+      if (best && best.dataset.id !== S.gameId) selectGame(best.dataset.id);
+    });
+  }, { passive: true });
+  requestAnimationFrame(() => {
+    const el = box.querySelector(`[data-id="${S.gameId}"]`);
+    if (el) box.scrollLeft = el.offsetLeft - (box.clientWidth - el.clientWidth) / 2;
+    selectGame(S.gameId, true);
   });
 })();
+function selectGame(id, silent = false) {
+  S.gameId = id;
+  try { localStorage.setItem('game', id); } catch {}
+  $$('#carousel .game-card').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+  $$('#dots i').forEach((d, i) => d.classList.toggle('on', GAMES[i].id === id));
+  const g = GAME[id];
+  $('#play-btn').innerHTML = g.solo ? '<span>▶</span> Сесть за стол' : '<span>▶</span> Играть';
+  $('#bots-btn').classList.toggle('hidden', !!g.solo);
+  $('.menu-pair').classList.toggle('single', !!g.solo);
+  if (!silent) { sfx.click(); haptic('light'); }
+}
+$('#play-btn').addEventListener('click', () => {
+  haptic('medium');
+  const g = GAME[S.gameId];
+  if (g.solo) return send({ type: 'practice', game: g.id });
+  renderModes(); show('mode');
+});
+$('#friends-btn').addEventListener('click', () => { haptic(); $('#friends-title') && ($('#friends-title').textContent = GAME[S.gameId].name); show('friends'); });
+$('#bots-btn').addEventListener('click', () => { haptic(); renderPractice(); show('practice'); });
+
+function renderModes() {
+  const g = GAME[S.gameId];
+  $('#mode-title').textContent = g.name;
+  $('#mode-stake').innerHTML = g.stake ? `Ставка в матчмейкинге — <b>${g.stake} 🪙</b>. С ботами и с друзьями — на интерес.` : '';
+  const box = $('#modes');
+  box.innerHTML = '';
+  for (const [mode, [name, ppl, ico]] of Object.entries(g.modes)) {
+    const b = document.createElement('button');
+    b.className = 'mode-card';
+    b.innerHTML = `<span class="mc-ico">${ico}</span><span class="mc-txt"><b>${name}</b><span class="ppl">${ppl}</span></span><span class="stat" data-stat="${mode}"></span>`;
+    b.onclick = () => { haptic('medium'); send({ type: 'queue', game: g.id, mode }); };
+    box.appendChild(b);
+  }
+  if (S.stats) onStats(S.stats);
+}
+function renderPractice() {
+  const g = GAME[S.gameId];
+  $('#practice-hint').textContent = `${g.name}: сколько ботов посадить за стол?`;
+  const box = $('#practice-grid');
+  box.innerHTML = '';
+  box.style.gridTemplateColumns = `repeat(${Math.min(g.bots.length, 5)}, 1fr)`;
+  for (const n of g.bots) {
+    const b = document.createElement('button');
+    b.className = 'size-card';
+    b.innerHTML = `<b>${n}</b><span>${n === 1 ? 'бот' : n < 5 ? 'бота' : 'ботов'}</span>`;
+    b.onclick = () => { haptic('medium'); send({ type: 'practice', game: g.id, bots: n }); };
+    box.appendChild(b);
+  }
+}
+
+// ---------- профиль и баланс ----------
+const fmt = n => Number(n || 0).toLocaleString('ru-RU');
+function onProfile(p) {
+  if (!p) return;
+  const prev = S.profile;
+  S.profile = p;
+  const el = $('#coins');
+  el.textContent = fmt(p.coins);
+  if (prev && prev.coins !== p.coins) { el.parentElement.classList.remove('pop'); void el.offsetWidth; el.parentElement.classList.add('pop'); }
+  renderMeSub();
+  if (S.screen === 'profile') renderProfile();
+  if (prev && p.level > prev.level) { toast(`⭐ Новый уровень: ${p.level}!`); sfx.win(); }
+}
+let bonusTimer;
+function renderProfile() {
+  const p = S.profile;
+  if (!p) return;
+  $('#pf-avatar').replaceChildren(avatar(S.me || p, 'avatar big'));
+  $('#pf-name').textContent = p.name;
+  $('#pf-level').textContent = `Уровень ${p.level} · ${p.xp} опыта`;
+  $('#pf-xp').style.width = `${Math.min(100, ((p.xp - p.levelFrom) / (p.levelTo - p.levelFrom)) * 100)}%`;
+  $('#pf-coins').textContent = fmt(p.coins);
+  const tick = () => {
+    const left = p.bonusAt - Date.now();
+    $('#bonus-btn').disabled = left > 0;
+    $('#bonus-hint').textContent = left > 0 ? `Следующий бонус через ${Math.floor(left / 3600000)} ч ${Math.floor(left / 60000) % 60} мин` : 'Ежедневный бонус готов — +300 монет';
+  };
+  clearInterval(bonusTimer); tick(); bonusTimer = setInterval(tick, 30000);
+  const rows = GAMES.map(g => {
+    const st = p.stats?.[g.id] || { played: 0, won: 0 };
+    return `<tr><td>${g.name}</td><td>${st.played}</td><td>${st.won}</td><td>${st.played ? Math.round((st.won / st.played) * 100) : 0}%</td></tr>`;
+  }).join('');
+  $('#pf-stats').innerHTML = `<tr><th>Игра</th><th>Партий</th><th>Побед</th><th>%</th></tr>${rows}`;
+}
+$('#bonus-btn').addEventListener('click', () => { haptic('medium'); send({ type: 'bonus' }); });
+
+// ---------- столы новых игр ----------
+initTable({
+  send, me: () => S.me, sfx, haptic, toast, avatar, esc, openModal,
+  seatOf: id => S.tgame?.seats?.find(s => s.id === id),
+  afterOver: iWon => {
+    const priv = S.room?.private, host = S.room?.hostId === S.me?.id;
+    const again = $('#over-again');
+    again.disabled = priv && !host;
+    again.textContent = !priv ? '🔍 Искать новую игру' : host ? '🔁 Ещё партию' : 'Ждём создателя стола…';
+    if (!$('#modal-over').classList.contains('open')) { haptic(iWon ? 'success' : 'error'); iWon ? sfx.win() : sfx.lose(); openModal('over'); }
+  },
+});
+function onTable(g) {
+  S.tgame = g;
+  show('table');
+  if (g.phase === 'playing') closeModal('over');
+  onTableGame(g);
+}
 
 // ---------- матчмейкинг ----------
-$$('[data-queue]').forEach(b => b.addEventListener('click', () => { haptic('medium'); send({ type: 'queue', mode: b.dataset.queue }); }));
-$$('[data-practice]').forEach(b => b.addEventListener('click', () => { haptic('medium'); send({ type: 'practice', bots: Number(b.dataset.practice) }); }));
 $('#queue-cancel').addEventListener('click', () => send({ type: 'queue_cancel' }));
 $('#queue-bots').addEventListener('click', () => send({ type: 'queue_bots' }));
 
-const MODE_NAME = { duel: 'Дуэль', trio: 'Трое', party: 'Компания 4–6' };
+
 const plural = (n, one, few, many) => n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many;
 
 function onStats(m) {
   S.stats = m;
-  for (const [mode, st] of Object.entries(m.modes)) {
+  for (const [gid, gs] of Object.entries(m.games || {})) {
+    const live = $(`[data-live="${gid}"]`);
+    if (live) live.textContent = gs.playing ? ` · ${gs.playing} ${plural(gs.playing, 'играет', 'играют', 'играют')}` : '';
+  }
+  const modes = m.games?.[S.gameId]?.modes || {};
+  for (const [mode, st] of Object.entries(modes)) {
     const el = $(`[data-stat="${mode}"]`);
     if (!el) continue;
     const html = `<i class="dot play"></i>${st.playing} ${plural(st.playing, 'играет', 'играют', 'играют')} <i class="dot find"></i>${st.searching} ${plural(st.searching, 'ищет', 'ищут', 'ищут')}`;
@@ -303,9 +452,9 @@ function onStats(m) {
   renderQueueStat();
 }
 function renderQueueStat() {
-  const q = S.queue, st = q && S.stats?.modes[q.mode];
+  const q = S.queue, st = q && S.stats?.games?.[q.game]?.modes[q.mode];
   if (!st) return;
-  $('#queue-stat').innerHTML = `<b>${MODE_NAME[q.mode]}</b><br>${st.searching} ${plural(st.searching, 'ищет', 'ищут', 'ищут')} · ${st.playing} ${plural(st.playing, 'играет', 'играют', 'играют')}`;
+  $('#queue-stat').innerHTML = `<b>${GAME[q.game].name} · ${GAME[q.game].modes[q.mode][0]}</b><br>${st.searching} ${plural(st.searching, 'ищет', 'ищут', 'ищут')} · ${st.playing} ${plural(st.playing, 'играет', 'играют', 'играют')}`;
 }
 
 let queueTimer;
@@ -338,7 +487,7 @@ function onQueue(m) {
 function leaveQueueUi() { clearInterval(queueTimer); S.queue = null; S.queueStart = null; }
 
 // ---------- комнаты ----------
-$('#room-create').addEventListener('click', () => { haptic('medium'); send({ type: 'room_create' }); });
+$('#room-create').addEventListener('click', () => { haptic('medium'); send({ type: 'room_create', game: S.gameId }); });
 $('#join-form').addEventListener('submit', e => {
   e.preventDefault();
   const code = $('#join-code').value.trim().toUpperCase();
@@ -380,13 +529,14 @@ function onRoom(room) {
   S.room = room;
   leaveQueueUi();
   if (!room) {
-    S.game = null; resetTable(); S.initialized = false;
+    S.game = null; S.tgame = null; resetTable(); resetTableUI(); S.initialized = false;
     $$('.modal').forEach(m => m.classList.remove('open'));
-    if (['room', 'game', 'queue'].includes(S.screen)) home();
+    if (['room', 'game', 'queue', 'table'].includes(S.screen)) home();
     return;
   }
-  if (room.inGame) { if (S.game) show('game'); return; }
+  if (room.inGame) { if (room.game !== '108' ? S.tgame : S.game) show(room.game !== '108' ? 'table' : 'game'); return; }
   if (S.game?.phase === 'gameOver' && S.screen === 'game') { renderOver(); return; }
+  if (S.tgame?.phase === 'gameOver' && S.screen === 'table') return;
   if (!prev || prev.code !== room.code) S.history = ['home'];
   renderRoom();
   show('room');
@@ -396,6 +546,7 @@ function renderRoom() {
   const r = S.room;
   const isHost = r.hostId === S.me?.id;
   $('#room-code').textContent = r.code;
+  $('#room-title').textContent = `Стол: ${GAME[r.game]?.name || ''}`;
   const ul = $('#seats');
   ul.innerHTML = '';
   for (const s of r.seats) {
@@ -413,10 +564,10 @@ function renderRoom() {
     }
     ul.appendChild(li);
   }
-  if (r.seats.length < 6) ul.insertAdjacentHTML('beforeend', '<li class="seat empty">Ждём друзей… (до 6 игроков)</li>');
+  if (r.seats.length < r.max) ul.insertAdjacentHTML('beforeend', `<li class="seat empty">Ждём друзей… (до ${r.max} игроков)</li>`);
   $('#room-start').classList.toggle('hidden', !isHost);
-  $('#room-add-bot').classList.toggle('hidden', !isHost || r.seats.length >= 6);
-  $('#room-start').disabled = r.seats.length < 2;
+  $('#room-add-bot').classList.toggle('hidden', !isHost || r.solo || r.seats.length >= r.max);
+  $('#room-start').disabled = r.seats.length < r.min;
   $('#room-wait').classList.toggle('hidden', isHost);
 }
 
@@ -957,13 +1108,13 @@ function renderScores() {
   body.insertAdjacentHTML('beforeend', `<p class="hint center">Больше ${g.target} — вылет · ровно ${g.target - 1} — пополам · ровно ${g.target} — ноль</p>`);
 }
 
-window.addEventListener('resize', () => S.game && renderHand(S.game));
+window.addEventListener('resize', () => { if (S.game) renderHand(S.game); rerenderTable(); });
 
 // ---------- эмодзи-чат ----------
 const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '🔥', '💩', '🙏', '🤝',
   'Удачи!', 'Ну ты даёшь!', 'Быстрее!', 'Ха-ха', 'Не повезло', 'Хорош!', 'Ещё партию?', 'GG'];
-(function buildChat() {
-  const panel = $('#chat-panel');
+function buildChat(panelSel, btnSel) {
+  const panel = $(panelSel);
   CHAT.forEach((t, i) => {
     const b = document.createElement('button');
     b.className = i < 12 ? 'emo' : 'phrase';
@@ -978,13 +1129,15 @@ const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '�
     };
     panel.appendChild(b);
   });
-  $('#game-chat').addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('open'); });
-  document.addEventListener('pointerdown', e => { if (!e.target.closest('#chat-panel, #game-chat')) panel.classList.remove('open'); });
-})();
+  $(btnSel).addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('open'); });
+  document.addEventListener('pointerdown', e => { if (!e.target.closest(`${panelSel}, ${btnSel}`)) panel.classList.remove('open'); });
+}
+buildChat('#chat-panel', '#game-chat');
+buildChat('#t-chat-panel', '#t-chat');
 function onChat(m) {
   const text = CHAT[m.e];
-  if (!text || S.screen !== 'game') return;
-  const host = m.from === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(m.from)}"]`);
+  if (!text || !['game', 'table'].includes(S.screen)) return;
+  const host = S.screen === 'table' ? chatHost(m.from) : m.from === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(m.from)}"]`);
   if (!host) return;
   const b = document.createElement('div');
   b.className = 'chat-bubble' + (m.e < 12 ? ' big' : '');

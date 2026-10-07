@@ -6,7 +6,7 @@ export async function startBot(token, webAppUrl) {
   const url = (params = '') => `${webAppUrl}${params ? '?' + params : ''}`;
 
   // Всё — внутри приложения. Бот только открывает игру (и стол по приглашению)
-  const playKb = (code) => new InlineKeyboard().webApp(code ? '🪑 Сесть за стол' : '🃏 Играть в 108', url(code ? `room=${code}` : ''));
+  const playKb = (code) => new InlineKeyboard().webApp(code ? '🪑 Сесть за стол' : '🃏 Открыть nLuck', url(code ? `room=${code}` : ''));
 
   bot.on('message', async ctx => {
     const m = /^\/start\s+([A-Z0-9]{5})$/i.exec(ctx.message.text || '');
@@ -14,7 +14,7 @@ export async function startBot(token, webAppUrl) {
     const name = ctx.from?.first_name ? `, ${ctx.from.first_name}` : '';
     await ctx.reply(code
       ? `🃏 Тебя позвали за стол <b>${code}</b>! Жми кнопку и садись.`
-      : `Привет${name}! 👋 Жми кнопку — игра откроется прямо здесь.`,
+      : `Привет${name}! 👋 Это nLuck — карточный клуб: 108, Дурак, Бура, Покер, Блэкджек. Жми кнопку — всё откроется прямо здесь.`,
       { parse_mode: 'HTML', reply_markup: playKb(code) });
   });
   bot.catch(err => console.error('bot error', err.error));
@@ -23,9 +23,9 @@ export async function startBot(token, webAppUrl) {
   const safe = p => p.catch(e => console.error('setup:', e.description || e.message));
   await Promise.all([
     safe(bot.api.deleteMyCommands()),
-    safe(bot.api.setMyShortDescription('🃏 Карточная игра 108 — играй с друзьями и соперниками прямо в Telegram')),
+    safe(bot.api.setMyShortDescription('🃏 nLuck — карточный клуб: 108, Дурак, Бура, Покер, Блэкджек прямо в Telegram')),
     safe(bot.api.setMyDescription(
-      '🃏 108 — карточная игра на 36 карт для 2–6 игроков. Матчмейкинг, столы с друзьями, боты и достижения — всё внутри игры. Жми «Старт»!',
+      '🃏 nLuck — карточный клуб: 108, Дурак, Бура, Покер и Блэкджек. Матчмейкинг, столы с друзьями, боты, монеты, профиль и достижения — всё внутри. Жми «Старт»!',
     )),
     safe(bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: '🃏 Играть', web_app: { url: webAppUrl } } })),
   ]);

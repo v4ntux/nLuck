@@ -157,3 +157,138 @@ body.lite .mode-card { background-image: none; }
   background-image: var(--grain), linear-gradient(180deg, #bd3a2d, #97241a); box-shadow: inset 0 1px 0 rgba(255,200,180,.35), var(--lift); }
 .act-row .chat-panel { top: auto; right: auto; left: 0; bottom: calc(100% + 8px); transform-origin: bottom left; }
 .hand { margin-top: 2px; }
+
+/* ======================= клуб: главная ======================= */
+.home-top { gap: 10px; }
+.me-chip { cursor: pointer; font: inherit; color: var(--ink); text-align: left; }
+.coins-pill {
+  display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font: inherit; color: var(--ink); cursor: pointer;
+  border: 1px solid rgba(70,50,20,.32); background-image: var(--grain), linear-gradient(180deg, #fff6dc, #f0dfae); box-shadow: var(--edge), var(--lift-sm);
+}
+.coins-pill i { font-style: normal; font-size: 18px; }
+.coins-pill b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.coins-pill.pop { animation: numPop .6s var(--spring); }
+.brand { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin: 10px 0 4px; position: relative; }
+.brand h1 { margin: 0; font-family: 'Playfair Display', serif; font-weight: 900; font-size: 40px; color: var(--red); letter-spacing: -1px; transform: rotate(-2deg); }
+.brand span { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-soft); }
+.brand .conn { position: absolute; right: 0; top: 50%; }
+
+.carousel {
+  display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 14px 12%; margin: 0 -16px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; flex: 1; min-height: 250px; align-items: center;
+}
+.carousel::-webkit-scrollbar { display: none; }
+.game-card {
+  flex: 0 0 76%; scroll-snap-align: center; position: relative; border-radius: 6px; padding: 14px 14px 16px; height: 100%; max-height: 330px; min-height: 230px;
+  display: flex; flex-direction: column; justify-content: flex-end; cursor: pointer; overflow: hidden;
+  background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f2e8d2); box-shadow: var(--lift);
+  transform: scale(.9) rotate(-1deg); opacity: .65; transition: transform .45s var(--snap), opacity .3s, box-shadow .3s;
+}
+.game-card::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--gc); }
+.game-card.sel { transform: scale(1) rotate(0); opacity: 1; box-shadow: 0 2px 4px rgba(70,50,20,.2), 0 18px 34px rgba(70,50,20,.25); }
+.gc-fan { position: relative; flex: 1; min-height: 120px; }
+.gc-fan .card { position: absolute; left: 50%; bottom: 8px; --card-w: 74px; transform-origin: 50% 120%; transition: transform .5s var(--spring); }
+.game-card.sel .gc-fan .card { animation: fanIn .6s var(--spring) backwards; }
+@keyframes fanIn { from { transform: translateX(-50%) rotate(0) translateY(20px); } }
+.gc-txt { display: flex; flex-direction: column; gap: 2px; text-align: center; }
+.gc-txt b { font-family: 'Playfair Display', serif; font-size: 30px; color: var(--gc); line-height: 1.05; }
+.gc-txt span { font-size: 14px; color: var(--ink); }
+.gc-txt small { font-size: 12px; color: var(--ink-soft); }
+.gc-txt em { font-style: normal; color: #2f6b2a; font-weight: 700; }
+.dots { display: flex; justify-content: center; gap: 8px; margin: 2px 0 12px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(70,50,20,.25); cursor: pointer; transition: width .3s var(--snap), background .3s; }
+.dots i.on { width: 22px; border-radius: 4px; background: var(--red); }
+.menu-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.menu-pair.single { grid-template-columns: 1fr; }
+.quick-row.four { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.quick-row.four .btn.quick { font-size: 12px; padding: 9px 2px; }
+
+/* ======================= профиль ======================= */
+.avatar.big { width: 64px; height: 64px; font-size: 28px; }
+.profile-card { display: flex; flex-direction: column; gap: 12px; }
+.pf-top { display: flex; align-items: center; gap: 14px; }
+.pf-top > div { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.pf-top b { font-size: 20px; }
+.pf-top small { color: var(--ink-soft); }
+.xp-bar { height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.xp-bar i { display: block; height: 100%; background: var(--red); transition: width .6s var(--snap); }
+.pf-coins { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 10px; border-radius: 4px; background: rgba(240, 214, 140, .35); }
+.pf-coins span { color: var(--ink-soft); }
+.pf-coins b { font-family: 'Playfair Display', serif; font-size: 34px; }
+.pf-coins i { font-style: normal; font-size: 24px; }
+.pf-stats { width: 100%; border-collapse: collapse; font-size: 15px; }
+.pf-stats th { text-align: left; font-size: 12px; color: var(--ink-soft); font-weight: 400; padding: 4px; }
+.pf-stats td { padding: 7px 4px; border-top: 1px dashed var(--line); }
+.pf-stats td:not(:first-child), .pf-stats th:not(:first-child) { text-align: right; }
+
+/* ======================= столы новых игр ======================= */
+#screen-table { padding: 0; overflow: hidden; }
+.t2 { position: relative; }
+.t-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; position: relative; min-height: 160px; }
+.t-status { text-align: center; min-height: 22px; font-weight: 700; font-size: 15px; color: var(--red); }
+.t-actions { display: grid; gap: 8px; margin-top: 6px; }
+.t-actions .btn { padding: 12px 6px; font-size: 17px; min-height: 50px; }
+.t-actions .wide { grid-column: 1 / -1; min-height: 40px; font-size: 14px; }
+.t-hand { position: relative; height: calc(80px * 1.4 + 40px); margin-top: 4px; }
+.t-hand.big { height: calc(96px * 1.4 + 30px); }
+.t-hand .card { position: absolute; bottom: 14px; left: 50%; transform-origin: 50% 100%; cursor: pointer; transition: transform .45s var(--snap), filter .2s; box-shadow: 0 1px 1px rgba(70,50,20,.25), 0 4px 10px rgba(70,50,20,.22); }
+.t-hand .card.picked { box-shadow: 0 0 0 2.5px var(--red), 0 8px 16px rgba(70,50,20,.3); }
+.t-hand .card.deal-in { animation: dealUp .5s var(--snap) backwards; }
+@keyframes dealUp { from { opacity: 0; translate: 0 -160px; } }
+.pop-in { animation: popIn .45s var(--spring) backwards; }
+@keyframes popIn { from { opacity: 0; transform: translateY(-40px) scale(1.25) rotate(-12deg); } }
+.t2 .chat-panel { top: 58px; right: 10px; left: auto; bottom: auto; transform-origin: top right; }
+.opp .role { position: absolute; bottom: -4px; right: -8px; font-size: 15px; background: #fdf9f0; border-radius: 50%; width: 24px; height: 24px; display: grid; place-items: center; box-shadow: var(--lift-sm); font-weight: 700; }
+.opp-show { display: flex; margin-top: 2px; }
+.opp-show .card { --card-w: 30px; margin-left: -10px; }
+.opp-show .card:first-child { margin-left: 0; }
+.act-tag { font-size: 11px; font-weight: 700; color: #fbf1df; background: #3b2f25; border-radius: 4px; padding: 0 5px; }
+.act-tag.won { background: #2f6b2a; }
+.t-hint { color: var(--ink-soft); font-size: 15px; text-align: center; }
+
+/* колода и козырь */
+.t-deck { position: relative; width: 120px; height: 100px; align-self: flex-start; margin-left: 4px; }
+.t-deck .card { position: absolute; --card-w: 62px; }
+.t-deck .trump-card { left: 22px; top: 18px; transform: rotate(90deg); }
+.t-deck .deck-top { left: 4px; top: 0; }
+.t-count { position: absolute; left: 4px; bottom: -18px; width: 62px; text-align: center; font-size: 12px; color: var(--ink-soft); }
+.t-trump { position: absolute; right: 0; top: -6px; font-size: 22px; }
+.t-trump.red { color: #c8102e; }
+.t-center:has(.t-deck) { display: grid; grid-template-columns: 96px 1fr; align-items: center; justify-items: center; }
+.t-center:has(.t-deck) .t-deck { align-self: center; width: 92px; margin: 0; }
+
+/* дурак: пары на столе */
+.durak-table { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 4px; min-width: 200px; }
+.durak-table .pair { position: relative; width: 70px; height: 100px; }
+.durak-table .pair .card { position: absolute; --card-w: 62px; left: 0; top: 0; }
+.durak-table .pair .card.cover { left: 10px; top: 14px; transform: rotate(9deg); }
+
+/* бура: взятка */
+.bura-trick { flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: center; min-width: 200px; }
+.trick-row { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; }
+.trick-row .card { --card-w: 48px; }
+.trick-row .who { font-size: 12px; font-weight: 700; width: 64px; text-align: right; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trick-row.beat { background: rgba(47, 107, 42, .12); }
+.trick-row.weak .card { filter: brightness(.85) saturate(.6); }
+
+/* покер */
+.board { display: flex; gap: 6px; }
+.board .card, .board .slot { --card-w: 56px; width: 56px; }
+.slot { aspect-ratio: 200/280; border-radius: 5px; border: 1.5px dashed rgba(70,50,20,.3); }
+.pot { font-size: 14px; color: var(--ink-soft); }
+.pot b { color: var(--ink); font-size: 17px; }
+.result-banner { padding: 8px 14px; border-radius: 4px; background: #fdf9f0; box-shadow: var(--lift); font-weight: 700; text-align: center; animation: popIn .5s var(--spring); }
+.result-banner.win { color: #2f6b2a; } .result-banner.lose { color: var(--red); }
+.bet-chip, .dealer-btn { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 13px; padding: 0 6px; font-size: 12px; font-weight: 700; margin-left: 6px; }
+.bet-chip { background: #2f6b2a; color: #fff; }
+.dealer-btn { background: #fdf9f0; border: 1px solid rgba(70,50,20,.4); }
+.raise-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.chip-btn { display: flex; flex-direction: column; align-items: center; line-height: 1.1; font-size: 14px !important; padding: 8px 2px !important; min-height: 46px !important; }
+.chip-btn small { font-size: 11px; color: var(--ink-soft); font-weight: 400; }
+.chip-btn b { font-size: 18px; }
+
+/* блэкджек */
+.dealer { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.dealer .who { font-weight: 700; color: var(--ink-soft); }
+.dealer .cards { display: flex; gap: 6px; }
+.dealer .cards .card, .dealer .cards .slot { --card-w: 64px; width: 64px; }

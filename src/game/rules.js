@@ -4,7 +4,7 @@ export const SUITS = ['spades', 'clubs', 'diamonds', 'hearts'];
 export const RANKS = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
 export const RULES = {
-  handSize: 5,          // сколько карт раздаётся каждому
+  handSize: 4,          // сколько карт раздаётся каждому
   targetScore: 108,     // больше 108 — вылет, ровно 108 — счёт обнуляется
   halfScore: 107,       // ровно 107 — счёт делится пополам (округление вниз)
   afkSeconds: 60,       // если игрок отключился — через сколько за него сходит бот

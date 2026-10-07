@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>108 — карточная игра</title>
+  <title>nLuck — карточный клуб</title>
   <meta name="theme-color" content="#efe5cf">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,21 +18,22 @@
     <!-- Главный экран -->
     <section class="screen active" id="screen-home">
       <div class="home-top">
-        <div class="me-chip" id="me-chip"><span class="avatar" id="me-avatar"></span><span class="me-text"><b id="me-name">…</b><small id="me-sub">новичок</small></span></div>
-        <div class="top-right">
-          <div class="conn" id="conn" title="Соединение"></div>
-        </div>
+        <button class="me-chip" id="me-chip" data-go="profile"><span class="avatar" id="me-avatar"></span><span class="me-text"><b id="me-name">…</b><small id="me-sub">новичок</small></span></button>
+        <button class="coins-pill" data-go="profile"><i>🪙</i><b id="coins">—</b></button>
       </div>
-      <div class="logo">
-        <div class="logo-fan" id="logo-fan"></div>
-        <h1>108</h1>
-        <p class="tagline">Карточная игра · 36 карт</p>
-      </div>
+      <div class="brand"><h1>nLuck</h1><span>карточный клуб</span><div class="conn" id="conn" title="Соединение"></div></div>
+
+      <div class="carousel" id="carousel"></div>
+      <div class="dots" id="dots"></div>
+
       <div class="menu">
-        <button class="btn btn-primary btn-xl" data-go="mode"><span>▶</span> Начать игру</button>
-        <button class="btn btn-secondary" data-go="friends">👥 Играть с друзьями</button>
-        <button class="btn btn-ghost" data-go="practice">🤖 Тренировка с ботами</button>
-        <div class="quick-row">
+        <button class="btn btn-primary btn-xl" id="play-btn"><span>▶</span> Играть</button>
+        <div class="menu-pair">
+          <button class="btn btn-secondary" id="friends-btn">👥 С друзьями</button>
+          <button class="btn btn-ghost" id="bots-btn">🤖 С ботами</button>
+        </div>
+        <div class="quick-row four">
+          <button class="btn quick" data-go="profile"><i>👤</i><span>Профиль</span></button>
           <button class="btn quick" data-go="achievements"><i>🏅</i><span>Награды</span></button>
           <button class="btn quick" data-go="rules"><i>📖</i><span>Правила</span></button>
           <button class="btn quick" data-go="settings"><i>⚙️</i><span>Настройки</span></button>
@@ -40,20 +41,33 @@
       </div>
     </section>
 
+    <!-- Профиль -->
+    <section class="screen" id="screen-profile">
+      <header class="bar"><button class="back" data-back>‹</button><h2>Профиль</h2></header>
+      <div class="panel profile-card">
+        <div class="pf-top"><span id="pf-avatar"></span><div><b id="pf-name"></b><small id="pf-level"></small><div class="xp-bar"><i id="pf-xp"></i></div></div></div>
+        <div class="pf-coins"><span>Баланс</span><b id="pf-coins">0</b><i>🪙</i></div>
+        <button class="btn btn-primary" id="bonus-btn">🎁 Забрать бонус</button>
+        <p class="hint center" id="bonus-hint"></p>
+      </div>
+      <div class="panel">
+        <h3>Статистика</h3>
+        <table class="pf-stats" id="pf-stats"></table>
+      </div>
+      <button class="btn btn-secondary" data-go="achievements">🏅 Достижения</button>
+    </section>
+
     <!-- Матчмейкинг: выбор режима -->
     <section class="screen" id="screen-mode">
-      <header class="bar"><button class="back" data-back>‹</button><h2>Поиск игры</h2></header>
-      <div class="modes">
-        <button class="mode-card" data-queue="duel"><span class="mc-ico">⚔️</span><span class="mc-txt"><b>Дуэль</b><span class="ppl">1 на 1</span></span><span class="stat" data-stat="duel"></span></button>
-        <button class="mode-card" data-queue="trio"><span class="mc-ico">🃏</span><span class="mc-txt"><b>Трое</b><span class="ppl">3 игрока</span></span><span class="stat" data-stat="trio"></span></button>
-        <button class="mode-card" data-queue="party"><span class="mc-ico">🎉</span><span class="mc-txt"><b>Компания</b><span class="ppl">4–6 игроков</span></span><span class="stat" data-stat="party"></span></button>
-      </div>
+      <header class="bar"><button class="back" data-back>‹</button><h2 id="mode-title">Поиск игры</h2></header>
+      <p class="hint" id="mode-stake"></p>
+      <div class="modes" id="modes"></div>
       <p class="hint center online-line" id="online-count"></p>
     </section>
 
     <!-- Правила (вкладка) -->
     <section class="screen" id="screen-rules">
-      <header class="bar"><button class="back" data-back>‹</button><h2>Правила</h2></header>
+      <header class="bar"><button class="back" data-back>‹</button><h2 id="rules-title">Правила</h2></header>
       <div class="panel rules" id="rules-body"></div>
     </section>
 
@@ -74,17 +88,13 @@
     <!-- Тренировка -->
     <section class="screen" id="screen-practice">
       <header class="bar"><button class="back" data-back>‹</button><h2>Тренировка</h2></header>
-      <p class="hint">Сколько ботов посадить за стол?</p>
-      <div class="size-grid">
-        <button class="size-card" data-practice="1"><b>1</b><span>бот</span></button>
-        <button class="size-card" data-practice="2"><b>2</b><span>бота</span></button>
-        <button class="size-card" data-practice="3"><b>3</b><span>бота</span></button>
-      </div>
+      <p class="hint" id="practice-hint">Сколько ботов посадить за стол?</p>
+      <div class="size-grid" id="practice-grid"></div>
     </section>
 
     <!-- Друзья -->
     <section class="screen" id="screen-friends">
-      <header class="bar"><button class="back" data-back>‹</button><h2>Игра с друзьями</h2></header>
+      <header class="bar"><button class="back" data-back>‹</button><h2 id="friends-title">Игра с друзьями</h2></header>
       <div class="panel">
         <h3>Создать стол</h3>
         <p class="hint">Получишь код и ссылку — отправь друзьям в Telegram.</p>
@@ -101,7 +111,7 @@
 
     <!-- Комната -->
     <section class="screen" id="screen-room">
-      <header class="bar"><button class="back" id="room-leave">‹</button><h2>Стол друзей</h2></header>
+      <header class="bar"><button class="back" id="room-leave">‹</button><h2 id="room-title">Стол друзей</h2></header>
       <div class="room-code-box">
         <span class="label">Код стола</span>
         <button class="room-code" id="room-code" title="Скопировать">-----</button>
@@ -165,6 +175,23 @@
           <button class="btn btn-act" id="btn-pass">Пас</button>
         </div>
         <div class="hand" id="hand"></div>
+      </div>
+    </section>
+    <!-- Стол для Дурака, Буры, Покера, Блэкджека -->
+    <section class="screen" id="screen-table">
+      <div class="table t2">
+        <header class="game-bar">
+          <button class="icon-btn" id="t-menu" aria-label="Меню">☰</button>
+          <div class="round-label" id="t-title"></div>
+          <button class="icon-btn" id="t-chat" aria-label="Эмодзи">😀</button>
+        </header>
+        <div class="opponents" id="t-opps"></div>
+        <div class="t-center" id="t-center"></div>
+        <div class="t-status" id="t-status"></div>
+        <div class="me-row"><div class="me-info" id="t-me"></div></div>
+        <div class="t-actions" id="t-actions"></div>
+        <div class="t-hand" id="t-hand"></div>
+        <div class="chat-panel" id="t-chat-panel"></div>
       </div>
     </section>
   </main>
