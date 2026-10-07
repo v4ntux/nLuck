@@ -9,7 +9,7 @@ export async function startBot(token, webAppUrl) {
   const playKb = (code) => new InlineKeyboard().webApp(code ? '🪑 Сесть за стол' : '🃏 Открыть nLuck', url(code ? `room=${code}` : ''));
 
   bot.on('message', async ctx => {
-    const m = /^\/start\s+([A-Z0-9]{5})$/i.exec(ctx.message.text || '');
+    const m = /^\/start\s+(?:r_?|room_?)?([A-Z0-9]{5})$/i.exec(ctx.message.text || '');
     const code = m ? m[1].toUpperCase() : null;
     const name = ctx.from?.first_name ? `, ${ctx.from.first_name}` : '';
     await ctx.reply(code

@@ -1,6 +1,6 @@
 import { SPRITE, cardEl, SUIT_SYMBOL, SUIT_NAME, isRed, rankLabel } from './cards.js';
 import { sfx, setMuted } from './sound.js';
-import { settings, saveSettings, BACKS, ACHIEVEMENTS, progress, loadProgress, saveProgress } from './store.js';
+import { settings, saveSettings, BACKS, ACHIEVEMENTS, ACH_GROUPS, progress, loadProgress, saveProgress } from './store.js';
 import { GAMES, GAME } from './games-info.js';
 import { initTable, onTableGame, resetTableUI, chatHost, rerender as rerenderTable } from './table.js';
 
@@ -107,6 +107,8 @@ function onMessage(m) {
     case 'queue': onQueue(m); break;
     case 'stats': onStats(m); break;
     case 'chat': onChat(m); break;
+    case 'say': addChat(m.where, m.msg); break;
+    case 'chat_history': (m.where === 'global' ? $('#global-list') : $('#room-list')).innerHTML = m.where === 'global' ? '' : ($('#table-list').innerHTML = '', ''); m.items.forEach(x => addChat(m.where, x, true)); break;
     case 'room': onRoom(m.room); break;
     case 'game': if (m.game.game && m.game.game !== '108') onTable(m.game); else onGame(m.game); break;
     case 'profile': onProfile(m.profile); break;
@@ -182,17 +184,23 @@ function renderAchievements() {
   const done = ACHIEVEMENTS.filter(a => progress.unlocked[a.id]).length;
   const list = $('#ach-list');
   list.innerHTML = `<li class="ach-head">Открыто ${done} из ${ACHIEVEMENTS.length}</li>`;
-  ACHIEVEMENTS.forEach((a, i) => {
-    const got = progress.unlocked[a.id];
-    const [cur, max] = a.goal ? a.goal(st) : [0, 0];
-    const li = document.createElement('li');
-    li.className = 'ach' + (got ? ' got' : '');
-    li.style.animationDelay = `${i * 35}ms`;
-    li.innerHTML = `<span class="ico">${a.icon}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}${a.reward ? ` · 🎁 ${esc(a.reward)}` : ''}</small>`
-      + (a.goal && !got ? `<div class="ach-bar"><i style="width:${Math.min(100, (cur / max) * 100)}%"></i></div><small>${Math.min(cur, max)} / ${max}</small>` : '')
-      + `</div>${got ? '<span class="tick">✓</span>' : ''}`;
-    list.appendChild(li);
-  });
+  let i = 0;
+  for (const [gid, title] of ACH_GROUPS) {
+    const group = ACHIEVEMENTS.filter(a => a.game === gid);
+    const n = group.filter(a => progress.unlocked[a.id]).length;
+    list.insertAdjacentHTML('beforeend', `<li class="ach-group"><span>${title}</span><small>${n} / ${group.length}</small></li>`);
+    for (const a of group) {
+      const got = progress.unlocked[a.id];
+      const [cur, max] = a.goal ? a.goal(st) : [0, 0];
+      const li = document.createElement('li');
+      li.className = 'ach' + (got ? ' got' : '');
+      li.style.animationDelay = `${Math.min(i++, 14) * 30}ms`;
+      li.innerHTML = `<span class="ico">${a.icon}</span><div><b>${esc(a.name)}</b><small>${esc(a.desc)}${a.reward ? ` · 🎁 ${esc(a.reward)}` : ''}</small>`
+        + (a.goal && !got ? `<div class="ach-bar"><i style="width:${Math.min(100, (cur / max) * 100)}%"></i></div><small>${Math.min(cur, max)} / ${max}</small>` : '')
+        + `</div>${got ? '<span class="tick">✓</span>' : ''}`;
+      list.appendChild(li);
+    }
+  }
 }
 const achQueue = [];
 function unlock(id) {
@@ -247,6 +255,7 @@ $$('[data-go]').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.go === 'achievements') renderAchievements();
   if (b.dataset.go === 'rules') renderRules();
   if (b.dataset.go === 'profile') renderProfile();
+  if (b.dataset.go === 'chat') { S.gUnread = 0; renderUnread(); if (!S.globalLoaded) { S.globalLoaded = true; send({ type: 'global_history' }); } setTimeout(() => scrollChat('#global-list'), 50); }
   show(b.dataset.go);
 }));
 $$('[data-back]').forEach(b => b.addEventListener('click', goBack));
@@ -281,72 +290,55 @@ function renderMe() {
   renderMeSub();
   $('#me-avatar').replaceWith(Object.assign(avatar(S.me), { id: 'me-avatar' }));
 }
-// ---------- переключатель игр (карусель) ----------
+// ---------- главная: список игр ----------
 S.gameId = (() => { try { const g = localStorage.getItem('game'); return GAME[g] ? g : '108'; } catch { return '108'; } })();
-(function buildCarousel() {
-  const box = $('#carousel'), dots = $('#dots');
-  GAMES.forEach((g, gi) => {
-    const el = document.createElement('div');
-    el.className = 'game-card';
-    el.dataset.id = g.id;
-    el.style.setProperty('--gc', g.color);
-    const fan = document.createElement('div');
-    fan.className = 'gc-fan';
-    g.fan.forEach(([rank, suit], i) => {
-      const c = cardEl({ id: `${g.id}-${rank}${suit}`, rank, suit });
-      const mid = (g.fan.length - 1) / 2;
-      c.style.transform = `translateX(-50%) rotate(${(i - mid) * 13}deg)`;
-      fan.appendChild(c);
-    });
-    el.appendChild(fan);
-    el.insertAdjacentHTML('beforeend', `<div class="gc-txt"><b>${g.name}</b><span>${g.tagline}</span><small>${g.players}<em data-live="${g.id}"></em></small></div>`);
-    el.onclick = () => { if (S.gameId !== g.id) { box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.clientWidth) / 2, behavior: 'smooth' }); } };
-    box.appendChild(el);
-    const d = document.createElement('i');
-    d.onclick = () => el.onclick();
-    dots.appendChild(d);
-    void gi;
+function miniFan(g, w = 46) {
+  const fan = document.createElement('div');
+  fan.className = 'mini-fan';
+  const mid = (g.fan.length - 1) / 2;
+  g.fan.forEach(([rank, suit], i) => {
+    const c = cardEl({ id: `${g.id}-${rank}${suit}`, rank, suit });
+    c.style.setProperty('--card-w', w + 'px');
+    c.style.transform = `translateX(-50%) rotate(${(i - mid) * 12}deg)`;
+    fan.appendChild(c);
   });
-  let raf;
-  box.addEventListener('scroll', () => {
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      const mid = box.scrollLeft + box.clientWidth / 2;
-      let best = null, bd = 1e9;
-      for (const el of box.children) { const d = Math.abs(el.offsetLeft + el.clientWidth / 2 - mid); if (d < bd) { bd = d; best = el; } }
-      if (best && best.dataset.id !== S.gameId) selectGame(best.dataset.id);
-    });
-  }, { passive: true });
-  requestAnimationFrame(() => {
-    const el = box.querySelector(`[data-id="${S.gameId}"]`);
-    if (el) box.scrollLeft = el.offsetLeft - (box.clientWidth - el.clientWidth) / 2;
-    selectGame(S.gameId, true);
+  return fan;
+}
+(function buildGamesList() {
+  const box = $('#games-list');
+  GAMES.forEach((g, i) => {
+    const el = document.createElement('button');
+    el.className = 'game-tile' + (i === 0 ? ' wide' : '');
+    el.style.setProperty('--gc', g.color);
+    el.style.animationDelay = `${i * 45}ms`;
+    el.appendChild(miniFan(g, i === 0 ? 54 : 40));
+    el.insertAdjacentHTML('beforeend', `<span class="gt-txt"><b>${g.name}</b><small>${g.tagline}</small><em><span data-live="${g.id}"></span>${g.players}</em></span><i class="chev">›</i>`);
+    el.onclick = () => { haptic('light'); openHub(g.id); };
+    box.appendChild(el);
   });
 })();
-function selectGame(id, silent = false) {
+function openHub(id) {
   S.gameId = id;
   try { localStorage.setItem('game', id); } catch {}
-  $$('#carousel .game-card').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
-  $$('#dots i').forEach((d, i) => d.classList.toggle('on', GAMES[i].id === id));
   const g = GAME[id];
-  $('#play-btn').innerHTML = g.solo ? '<span>▶</span> Сесть за стол' : '<span>▶</span> Играть';
-  $('#bots-btn').classList.toggle('hidden', !!g.solo);
-  $('.menu-pair').classList.toggle('single', !!g.solo);
-  if (!silent) { sfx.click(); haptic('light'); }
+  $('#hub-title').textContent = g.name;
+  $('#hub-tag').textContent = g.tagline;
+  $('#hub-fan').replaceChildren(miniFan(g, 74));
+  $('#hub-hero').style.setProperty('--gc', g.color);
+  $('#hub-online').classList.toggle('hidden', !!g.solo);
+  $('#hub-bots').classList.toggle('hidden', !!g.solo);
+  $('#solo-go').classList.toggle('hidden', !g.solo);
+  $('#hub-stake').textContent = g.stake ? `· ставка ${g.stake} 🪙` : '';
+  renderModes();
+  renderBotsPick();
+  show('hub');
 }
-$('#play-btn').addEventListener('click', () => {
-  haptic('medium');
-  const g = GAME[S.gameId];
-  if (g.solo) return send({ type: 'practice', game: g.id });
-  renderModes(); show('mode');
-});
-$('#friends-btn').addEventListener('click', () => { haptic(); $('#friends-title') && ($('#friends-title').textContent = GAME[S.gameId].name); show('friends'); });
-$('#bots-btn').addEventListener('click', () => { haptic(); renderPractice(); show('practice'); });
+$('#solo-go').addEventListener('click', () => { haptic('medium'); send({ type: 'practice', game: S.gameId }); });
+$('#bots-go').addEventListener('click', () => { haptic('medium'); send({ type: 'practice', game: S.gameId, bots: S.bots || 1 }); });
+['#code-btn', '#code-btn2'].forEach(sel => $(sel).addEventListener('click', () => { haptic(); openModal('code'); setTimeout(() => $('#join-code').focus(), 250); }));
 
 function renderModes() {
   const g = GAME[S.gameId];
-  $('#mode-title').textContent = g.name;
-  $('#mode-stake').innerHTML = g.stake ? `Ставка в матчмейкинге — <b>${g.stake} 🪙</b>. С ботами и с друзьями — на интерес.` : '';
   const box = $('#modes');
   box.innerHTML = '';
   for (const [mode, [name, ppl, ico]] of Object.entries(g.modes)) {
@@ -358,17 +350,17 @@ function renderModes() {
   }
   if (S.stats) onStats(S.stats);
 }
-function renderPractice() {
+function renderBotsPick() {
   const g = GAME[S.gameId];
-  $('#practice-hint').textContent = `${g.name}: сколько ботов посадить за стол?`;
-  const box = $('#practice-grid');
-  box.innerHTML = '';
-  box.style.gridTemplateColumns = `repeat(${Math.min(g.bots.length, 5)}, 1fr)`;
+  if (!g.bots) return;
+  S.bots = Math.min(S.bots || 1, g.bots[g.bots.length - 1]);
+  const box = $('#bots-pick');
+  box.innerHTML = '<span>Ботов:</span>';
   for (const n of g.bots) {
     const b = document.createElement('button');
-    b.className = 'size-card';
-    b.innerHTML = `<b>${n}</b><span>${n === 1 ? 'бот' : n < 5 ? 'бота' : 'ботов'}</span>`;
-    b.onclick = () => { haptic('medium'); send({ type: 'practice', game: g.id, bots: n }); };
+    b.className = 'pick' + (n === S.bots ? ' on' : '');
+    b.textContent = n;
+    b.onclick = () => { S.bots = n; sfx.click(); renderBotsPick(); };
     box.appendChild(b);
   }
 }
@@ -411,7 +403,7 @@ $('#bonus-btn').addEventListener('click', () => { haptic('medium'); send({ type:
 
 // ---------- столы новых игр ----------
 initTable({
-  send, me: () => S.me, sfx, haptic, toast, avatar, esc, openModal,
+  send, me: () => S.me, sfx, haptic, toast, avatar, esc, openModal, lite: () => settings.lite, hints: () => settings.hints, track: g => trackTable(g),
   seatOf: id => S.tgame?.seats?.find(s => s.id === id),
   afterOver: iWon => {
     const priv = S.room?.private, host = S.room?.hostId === S.me?.id;
@@ -420,6 +412,10 @@ initTable({
     again.textContent = !priv ? '🔍 Искать новую игру' : host ? '🔁 Ещё партию' : 'Ждём создателя стола…';
     if (!$('#modal-over').classList.contains('open')) { haptic(iWon ? 'success' : 'error'); iWon ? sfx.win() : sfx.lose(); openModal('over'); }
   },
+});
+$('#menu-rules').addEventListener('click', () => {
+  closeModal('menu');
+  if (S.tgame) { renderRules(S.tgame.game); show('rules'); } else openModal('rules');
 });
 function onTable(g) {
   S.tgame = g;
@@ -489,6 +485,7 @@ function leaveQueueUi() { clearInterval(queueTimer); S.queue = null; S.queueStar
 // ---------- комнаты ----------
 $('#room-create').addEventListener('click', () => { haptic('medium'); send({ type: 'room_create', game: S.gameId }); });
 $('#join-form').addEventListener('submit', e => {
+  closeModal('code');
   e.preventDefault();
   const code = $('#join-code').value.trim().toUpperCase();
   if (code.length !== 5) return toast('Код — 5 символов');
@@ -504,21 +501,22 @@ $('#room-share').addEventListener('click', shareRoom);
 function leaveRoom() { send({ type: 'room_leave' }); }
 
 function inviteLink(code) {
-  const { botUsername, appShortName } = S.config;
-  if (botUsername && appShortName) return `https://t.me/${botUsername}/${appShortName}?startapp=${code}`;
-  if (botUsername) return `https://t.me/${botUsername}?start=${code}`;
-  return `${location.origin}${location.pathname}?room=${code}`;
+  const { bot, app } = window.CLUB || {};
+  if (bot && app) return `https://t.me/${bot}/${app}?startapp=${code}`;
+  if (bot) return `https://t.me/${bot}?start=r_${code}`;
+  return `${location.origin}/?room=${code}`;
 }
 function shareRoom() {
   const code = S.room?.code;
   if (!code) return;
   const link = inviteLink(code);
-  const text = `Го в 108! Код стола: ${code}`;
+  const text = `Садись ко мне за стол в nLuck — ${GAME[S.room.game]?.name || ''}! Код: ${code}`;
   haptic();
   if (tg && inTg) return tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
-  if (navigator.share) return navigator.share({ title: '108', text, url: link }).catch(() => {});
+  if (navigator.share) return navigator.share({ title: 'nLuck', text, url: link }).catch(() => {});
   copy(link);
 }
+$('#room-copy').addEventListener('click', () => S.room && copy(inviteLink(S.room.code)));
 function copy(text) {
   if (!text) return;
   navigator.clipboard?.writeText(text).then(() => toast('Скопировано'), () => toast(text));
@@ -554,7 +552,7 @@ function renderRoom() {
     li.className = 'seat';
     li.appendChild(avatar(s));
     li.insertAdjacentHTML('beforeend', `<span class="name">${esc(s.name)}${s.id === S.me?.id ? ' (вы)' : ''}</span>`
-      + (s.id === r.hostId ? '<span class="tag">👑 создатель</span>' : '')
+      + (s.id === r.hostId ? '<span class="tag">👑 создатель</span>' : s.spectator ? '<span class="tag">👀 смотрит</span>' : s.bot ? '<span class="off">бот</span>' : '')
       + (!s.online ? '<span class="off">не в сети</span>' : ''));
     if (s.bot && isHost) {
       const b = document.createElement('button');
@@ -569,6 +567,9 @@ function renderRoom() {
   $('#room-add-bot').classList.toggle('hidden', !isHost || r.solo || r.seats.length >= r.max);
   $('#room-start').disabled = r.seats.length < r.min;
   $('#room-wait').classList.toggle('hidden', isHost);
+  $('#room-wait').textContent = r.inGame ? 'Идёт партия — вы сядете в следующей' : 'Ждём, пока создатель стола начнёт игру…';
+  $('#room-start').textContent = r.inGame ? 'Идёт партия…' : '▶ Начать';
+  if (r.inGame) $('#room-start').disabled = true;
 }
 
 // ---------- игра ----------
@@ -1113,8 +1114,9 @@ window.addEventListener('resize', () => { if (S.game) renderHand(S.game); rerend
 // ---------- эмодзи-чат ----------
 const CHAT = ['😂', '😎', '😡', '😭', '🤔', '😈', '👍', '👏', '🔥', '💩', '🙏', '🤝',
   'Удачи!', 'Ну ты даёшь!', 'Быстрее!', 'Ха-ха', 'Не повезло', 'Хорош!', 'Ещё партию?', 'GG'];
-function buildChat(panelSel, btnSel) {
-  const panel = $(panelSel);
+// ---------- чат: быстрые эмодзи + текст ----------
+(function buildQuickEmo() {
+  const box = $('#quick-emo');
   CHAT.forEach((t, i) => {
     const b = document.createElement('button');
     b.className = i < 12 ? 'emo' : 'phrase';
@@ -1124,23 +1126,63 @@ function buildChat(panelSel, btnSel) {
       if (now - (S.lastChat || 0) < 1200) return;
       S.lastChat = now;
       send({ type: 'chat', e: i });
-      panel.classList.remove('open');
+      closeModal('chat');
       progress.stats.chats++; saveProgress(); checkGoals();
     };
-    panel.appendChild(b);
+    box.appendChild(b);
   });
-  $(btnSel).addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('open'); });
-  document.addEventListener('pointerdown', e => { if (!e.target.closest(`${panelSel}, ${btnSel}`)) panel.classList.remove('open'); });
+})();
+$$('[data-chat]').forEach(b => b.addEventListener('click', () => { haptic(); S.unread = 0; renderUnread(); openModal('chat'); scrollChat('#table-list'); }));
+$$('.chat-form').forEach(f => f.addEventListener('submit', e => {
+  e.preventDefault();
+  const input = f.querySelector('input');
+  const text = input.value.trim();
+  if (!text) return;
+  send({ type: 'say', text, where: f.dataset.where });
+  input.value = '';
+  sfx.pop();
+}));
+const fmtTime = t => new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+function chatItem(m) {
+  const li = document.createElement('li');
+  if (m.sys) { li.className = 'sys'; li.textContent = m.text; return li; }
+  li.className = m.from === S.me?.id ? 'mine' : '';
+  if (m.from !== S.me?.id) li.appendChild(avatar({ name: m.name, photo: m.photo }));
+  li.insertAdjacentHTML('beforeend', `<div class="msg">${m.from === S.me?.id ? '' : `<b>${esc(m.name)}</b>`}<span>${esc(m.text)}</span><time>${fmtTime(m.t)}</time></div>`);
+  return li;
 }
-buildChat('#chat-panel', '#game-chat');
-buildChat('#t-chat-panel', '#t-chat');
+function scrollChat(sel) { const l = $(sel); if (l) l.scrollTop = l.scrollHeight; }
+function addChat(where, m, history = false) {
+  const lists = where === 'global' ? ['#global-list'] : ['#room-list', '#table-list'];
+  for (const sel of lists) {
+    const ul = $(sel);
+    ul.appendChild(chatItem(m));
+    while (ul.children.length > 60) ul.firstElementChild.remove();
+    scrollChat(sel);
+  }
+  if (history) return;
+  if (where === 'global') {
+    if (S.screen !== 'chat' && m.from !== S.me?.id) { S.gUnread = (S.gUnread || 0) + 1; renderUnread(); }
+    return;
+  }
+  if (m.sys || m.from === S.me?.id) return;
+  if (['game', 'table'].includes(S.screen) && !$('#modal-chat').classList.contains('open')) {
+    S.unread = (S.unread || 0) + 1; renderUnread();
+    onChat({ from: m.from, text: m.text.length > 40 ? m.text.slice(0, 38) + '…' : m.text });
+  }
+  sfx.pop();
+}
+function renderUnread() {
+  $$('[data-chat] .badge').forEach(b => { b.textContent = S.unread || ''; b.classList.toggle('hidden', !S.unread); });
+  const g = $('#global-badge'); g.textContent = S.gUnread || ''; g.classList.toggle('hidden', !S.gUnread);
+}
 function onChat(m) {
-  const text = CHAT[m.e];
+  const text = m.text ?? CHAT[m.e];
   if (!text || !['game', 'table'].includes(S.screen)) return;
   const host = S.screen === 'table' ? chatHost(m.from) : m.from === S.me?.id ? $('#me-info') : $(`#opponents .opp[data-id="${CSS.escape(m.from)}"]`);
   if (!host) return;
   const b = document.createElement('div');
-  b.className = 'chat-bubble' + (m.e < 12 ? ' big' : '');
+  b.className = 'chat-bubble' + (m.e != null && m.e < 12 ? ' big' : '');
   b.textContent = text;
   host.appendChild(b);
   sfx.pop();
@@ -1172,22 +1214,71 @@ function trackGame(g) {
   S.gameKey = key;
   const st = progress.stats;
   const meId = S.me?.id;
-  st.games++;
-  unlock('first_game');
-  if (S.room?.private && (S.room.seats || []).filter(x => !x.bot).length >= 2) unlock('friends');
+  st.p_108 = 1;
+  countGame(g.winnerId === meId);
   if (g.winnerId === meId) {
-    st.wins++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak);
-    unlock('first_win');
     if (g.players.length >= 4) unlock('party_win');
     const me = g.players.find(p => p.id === meId);
     if (me && me.score > 90) unlock('comeback');
+  }
+  saveProgress(); checkGoals();
+}
+function countGame(won) {
+  const st = progress.stats;
+  st.games++;
+  unlock('first_game');
+  if (S.room?.private && (S.room.seats || []).filter(x => !x.bot).length >= 2) unlock('friends');
+  if (won) {
+    st.wins++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak);
+    unlock('first_win');
     if (st.streak >= 3) unlock('streak_3');
   } else st.streak = 0;
+}
+// Дурак, Бура, Покер, Блэкджек — table.js сообщает о конце партии/раздачи
+function trackTable(g) {
+  const meId = S.me?.id, st = progress.stats;
+  if (g.game === 'blackjack') {
+    const me = g.players.find(p => p.id === meId);
+    if (g.phase !== 'roundOver' || !me?.result) return;
+    const key = `${S.room?.code}:bj:${g.round}`;
+    if (S.tableKey === key) return;
+    S.tableKey = key;
+    st.p_blackjack = 1;
+    if (me.result === 'win' || me.result === 'blackjack') { st.bjWins = (st.bjWins || 0) + 1; unlock('bj_win'); }
+    if (me.result === 'blackjack') unlock('bj_natural');
+    if (me.result === 'bust') unlock('bj_bust');
+    saveProgress(); checkGoals();
+    return;
+  }
+  const was = S.tablePhase;
+  S.tablePhase = g.phase;
+  if (g.phase !== 'gameOver' || was === 'gameOver') return;
+  st['p_' + g.game] = 1;
+  if (g.game === 'durak') {
+    const safe = g.durakId !== meId;
+    countGame(safe && !!g.durakId);
+    if (safe) {
+      st.durakWins = (st.durakWins || 0) + 1; unlock('durak_safe');
+      if (g.players.find(p => p.id === meId)?.place === 1) unlock('durak_first');
+      if (g.players.length >= 4) unlock('durak_party');
+    } else unlock('durak_fool');
+  } else {
+    const won = g.winnerId === meId;
+    countGame(won);
+    if (won && g.game === 'bura') {
+      st.buraWins = (st.buraWins || 0) + 1; unlock('bura_win');
+      if (g.players.every(p => p.id === meId || p.points < 10)) unlock('bura_dry');
+    }
+    if (won && g.game === 'poker') {
+      st.pokerWins = (st.pokerWins || 0) + 1; unlock('poker_win');
+      if (g.players.length >= 4) unlock('poker_party');
+    }
+  }
   saveProgress(); checkGoals();
 }
 
 // Кнопки бота «С друзьями» / «С ботами» открывают сразу нужный экран
 {
   const go = new URLSearchParams(location.search).get('go');
-  if (['friends', 'practice'].includes(go) && !startParam) show(go);
+  if (['friends', 'practice'].includes(go) && !startParam) openHub(S.gameId);
 }

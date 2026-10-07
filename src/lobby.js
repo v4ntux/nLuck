@@ -16,6 +16,7 @@ export class Lobby {
     this.users = new Map();  // userId -> { id, name, photo, ws, roomCode }
     this.rooms = new Map();  // code -> room
     this.queues = {};        // `${game}:${mode}` -> [{ id, since }]
+    this.globalChat = [];    // общий чат клуба (последние 60 сообщений)
     this.modeTimers = {};
     // банк монет для игр, где ставки внутри (блэкджек)
     this.bank = {
@@ -76,6 +77,8 @@ export class Lobby {
         case 'act': return this.gameAction(user, msg.a || {});
         case 'play': case 'draw': case 'pass': return this.gameAction(user, msg); // «108»
         case 'chat': return this.chat(user, Number(msg.e));
+        case 'say': return this.say(user, String(msg.text || ''), msg.where === 'global' ? 'global' : 'room');
+        case 'global_history': return this.send(user, { type: 'chat_history', where: 'global', items: this.globalChat });
         case 'bonus': {
           const r = db.claimBonus(user.id);
           this.send(user, { type: 'bonus', ...r });
@@ -238,16 +241,29 @@ export class Lobby {
 
   joinRoom(user, code) {
     const room = this.rooms.get(code);
-    if (!room) throw new LobbyError('Комната не найдена');
+    if (!room) throw new LobbyError('Стол не найден — проверьте код или попросите новое приглашение');
     const def = GAMES[room.gameId];
-    if (room.seats.find(s => s.id === user.id)) { user.roomCode = code; this.sendRoom(room); if (room.game) this.sendGame(room, user.id); return; }
-    if (room.seats.length >= def.max) throw new LobbyError('Стол заполнен');
-    const live = room.game && room.game.phase !== 'gameOver';
-    if (live && !def.joinAnytime) throw new LobbyError('Игра уже идёт');
     this.leaveQueue(user);
+    if (room.seats.find(s => s.id === user.id)) {
+      user.roomCode = code;
+      this.sendRoom(room);
+      this.send(user, { type: 'chat_history', where: 'room', items: room.chat || [] });
+      if (room.game) this.sendGame(room, user.id);
+      return;
+    }
+    if (user.roomCode && user.roomCode !== code) this.leaveRoom(user);
+    if (room.seats.filter(s => !s.spectator).length >= def.max && room.seats.length >= def.max + 4) throw new LobbyError('Стол заполнен');
+    const live = room.game && room.game.phase !== 'gameOver';
     this.seat(room, user);
-    if (live) { room.game.addPlayer({ id: user.id, name: user.name }); this.broadcastGame(room); }
+    const seat = room.seats.find(s => s.id === user.id);
+    if (live) {
+      if (def.joinAnytime && room.game.players.length < def.max) { room.game.addPlayer({ id: user.id, name: user.name }); }
+      else seat.spectator = true; // смотрит партию и садится в следующей
+    } else if (room.seats.filter(s => !s.spectator).length > def.max) seat.spectator = true;
+    this.sysMsg(room, `${user.name} ${seat.spectator ? 'смотрит игру' : 'сел за стол'}`);
     this.sendRoom(room);
+    this.send(user, { type: 'chat_history', where: 'room', items: room.chat || [] });
+    if (room.game) { this.broadcastGame(room); }
   }
 
   leaveRoom(user) {
@@ -256,8 +272,10 @@ export class Lobby {
     user.roomCode = null;
     this.send(user, { type: 'room', room: null });
     if (!room) return;
+    const was = room.seats.find(s => s.id === user.id);
     room.seats = room.seats.filter(s => s.id !== user.id);
-    if (room.game && room.game.phase !== 'gameOver') {
+    if (was) this.sysMsg(room, `${user.name} ушёл`);
+    if (room.game && room.game.phase !== 'gameOver' && !was?.spectator) {
       room.game.removePlayer(user.id);
       if (room.game.phase === 'gameOver') this.settle(room);
       this.broadcastGame(room);
@@ -301,13 +319,14 @@ export class Lobby {
   startRoom(user) {
     const room = this.ownRoom(user);
     const def = GAMES[room.gameId];
+    if (room.game && room.game.phase !== 'gameOver') throw new LobbyError('Партия уже идёт');
     if (room.seats.length < def.min) throw new LobbyError(`Нужно минимум ${def.min} игрока — позовите друга или добавьте бота`);
     this.start(room);
   }
 
   rematch(user) {
     const room = user.roomCode && this.rooms.get(user.roomCode);
-    if (!room || room.game?.phase !== 'gameOver') return;
+    if (!room || (room.game && room.game.phase !== 'gameOver')) return;
     if (!room.private) {
       const { gameId, mode } = room;
       this.leaveRoom(user);
@@ -321,13 +340,17 @@ export class Lobby {
 
   start(room) {
     const def = GAMES[room.gameId];
-    const humans = room.seats.filter(s => !s.bot);
+    // зрители садятся за стол в новой партии (сколько влезет)
+    let seated = 0;
+    for (const s of room.seats) { s.spectator = seated >= def.max; if (!s.spectator) seated++; }
+    const players = room.seats.filter(s => !s.spectator);
+    const humans = players.filter(s => !s.bot);
     // Ставка — только в матчмейкинге, где все живые. С ботами и с друзьями — на интерес
     room.stake = !room.private && !room.practice && humans.length === room.seats.length ? def.stake : 0;
     if (room.stake) for (const s of humans) { db.addCoins(s.id, -room.stake); this.sendProfile(s.id); }
     room.settled = false;
     room.payouts = null;
-    room.game = def.create(room.seats.map(s => ({ id: s.id, name: s.name })), { bank: this.bank });
+    room.game = def.create(players.map(s => ({ id: s.id, name: s.name })), { bank: this.bank });
     this.sendRoom(room);
     this.broadcastGame(room);
     this.schedule(room);
@@ -339,7 +362,7 @@ export class Lobby {
     room.settled = true;
     if (GAMES[room.gameId].solo) return;
     const { winners, losers } = room.game.result();
-    const humans = room.seats.filter(s => !s.bot).map(s => s.id);
+    const humans = room.game.players.map(p => p.id).filter(id => !String(id).startsWith('bot-'));
     const payouts = {};
     if (room.stake) {
       const pot = room.stake * room.game.players.filter(p => !String(p.id).startsWith('bot-')).length;
@@ -359,6 +382,31 @@ export class Lobby {
     if (now - (user.lastChat || 0) < 1200) return;
     user.lastChat = now;
     this.chatSend(room, user.id, e);
+  }
+
+  /** Текстовый чат: стол или общий чат клуба */
+  say(user, text, where) {
+    text = text.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
+    if (!text) return;
+    const now = Date.now();
+    if (now - (user.lastSay || 0) < 800) throw new LobbyError('Не так быстро');
+    user.lastSay = now;
+    const msg = { from: user.id, name: user.name, photo: user.photo || null, text, t: now };
+    if (where === 'global') {
+      this.globalChat.push(msg); if (this.globalChat.length > 60) this.globalChat.shift();
+      for (const u of this.users.values()) this.send(u, { type: 'say', where: 'global', msg });
+      return;
+    }
+    const room = user.roomCode && this.rooms.get(user.roomCode);
+    if (!room) throw new LobbyError('Вы не за столом');
+    (room.chat ||= []).push(msg); if (room.chat.length > 60) room.chat.shift();
+    for (const s of room.seats) if (!s.bot) this.send(this.users.get(s.id), { type: 'say', where: 'room', msg });
+  }
+
+  sysMsg(room, text) {
+    const msg = { sys: true, text, t: Date.now() };
+    (room.chat ||= []).push(msg); if (room.chat.length > 60) room.chat.shift();
+    for (const s of room.seats) if (!s.bot) this.send(this.users.get(s.id), { type: 'say', where: 'room', msg });
   }
 
   chatSend(room, from, e) {
@@ -441,6 +489,7 @@ export class Lobby {
       mode: room.mode || null, stake: room.stake || 0, min: def.min, max: def.max, solo: !!def.solo,
       inGame: !!room.game && room.game.phase !== 'gameOver',
       seats: room.seats.map(s => ({ ...s, online: s.bot || !!this.users.get(s.id)?.ws })),
+      spectating: room.seats.filter(s => s.spectator).map(s => s.id),
     };
   }
 

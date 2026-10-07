@@ -18,7 +18,7 @@ export function initTable(ctx) {
   $('#t-menu').addEventListener('click', () => C.openModal('menu'));
 }
 
-export function resetTableUI() { T = null; seenTable.clear(); seenHand.clear(); sel.clear(); raiseOpen = false; }
+export function resetTableUI() { T = null; seenTable.clear(); seenHand.clear(); sel.clear(); raiseOpen = false; for (const el of handEls.values()) el.remove(); handEls.clear(); }
 
 const SUIT_ORDER = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -28,7 +28,7 @@ const sortHand = (cards, trump) => [...cards].sort((a, b) =>
 // ---------- общие куски ----------
 function card(c, cls = '') {
   const el = cardEl(c, { back: !c, cls });
-  if (c && !seenTable.has(c.id)) { el.classList.add('pop-in'); seenTable.add(c.id); }
+  if (c && !seenTable.has(c.id)) { el.dataset.fresh = '1'; seenTable.add(c.id); }
   return el;
 }
 
@@ -88,27 +88,48 @@ function actions(btns) {
   }
 }
 
+const handEls = new Map();
 function hand(cards, { onTap, selectable = false, playable = () => true, big = false } = {}) {
   const box = $('#t-hand');
-  box.innerHTML = '';
   box.classList.toggle('big', big);
+  const ids = new Set(cards.map(c => c.id));
+  for (const [id, el] of handEls) if (!ids.has(id) || el.parentNode !== box) { el.remove(); handEls.delete(id); }
   const n = cards.length;
   const W = box.clientWidth || 360;
   const cw = big ? 96 : 80;
-  const step = n > 1 ? Math.min(cw * 0.66, (W - cw - 16) / (n - 1)) : 0;
-  const spread = Math.min(22, n * 4);
+  const step = n > 1 ? Math.min(cw * 0.66, (W - cw * 1.3 - 12) / (n - 1)) : 0;
+  const spread = n > 7 ? 10 : Math.min(22, n * 4);
+  const deck = $('#t-center .t-deck')?.getBoundingClientRect();
+  const hb = box.getBoundingClientRect();
+  let fresh = 0;
   cards.forEach((c, i) => {
     const half = (n - 1) / 2, off = i - half, norm = half ? off / half : 0;
-    const el = cardEl(c, { cls: 'in-hand' + (sel.has(c.id) ? ' picked' : '') + (playable(c) ? '' : ' dim') });
+    let el = handEls.get(c.id);
+    if (!el) {
+      el = cardEl(c, { cls: 'in-hand' });
+      el.style.setProperty('--card-w', cw + 'px');
+      el.onclick = () => {
+        const cur = el._card;
+        if (el._selectable) { sel.has(cur.id) ? sel.delete(cur.id) : sel.add(cur.id); C.sfx.click(); render(); return; }
+        el._onTap?.(cur, el);
+      };
+      handEls.set(c.id, el);
+      box.appendChild(el);
+      // новая карта прилетает из колоды (или сверху, если колоды нет)
+      if (!C.lite()) {
+        const fx = deck ? deck.left + deck.width / 2 - (hb.left + hb.width / 2) : 0;
+        const fy = deck ? deck.top - hb.top : -220;
+        el.animate([{ translate: `${fx}px ${fy}px`, scale: '.7', opacity: 0 }, { translate: '0 0', scale: '1', opacity: 1 }],
+          { duration: 480, delay: fresh++ * 70, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'backwards' });
+      }
+    }
+    el._card = c; el._onTap = onTap; el._selectable = selectable;
     el.style.setProperty('--card-w', cw + 'px');
+    el.classList.toggle('picked', sel.has(c.id));
+    el.classList.toggle('dim', !playable(c));
     el.style.transform = `translate(calc(-50% + ${off * step}px), ${norm * norm * 10 - (sel.has(c.id) ? 22 : 0)}px) rotate(${norm * spread / 2}deg)`;
     el.style.zIndex = i + 1;
-    if (!seenHand.has(c.id)) { el.classList.add('deal-in'); el.style.animationDelay = `${i * 40}ms`; seenHand.add(c.id); }
-    el.onclick = () => {
-      if (selectable) { sel.has(c.id) ? sel.delete(c.id) : sel.add(c.id); C.sfx.click(); render(); return; }
-      onTap?.(c, el);
-    };
-    box.appendChild(el);
+    if (el !== box.children[i]) box.insertBefore(el, box.children[i] || null);
   });
 }
 
@@ -121,7 +142,13 @@ const TITLES = { durak: 'Дурак', bura: 'Бура', poker: 'Покер', bla
 export function onTableGame(g) {
   const prev = T;
   T = g;
-  if (!prev || prev.game !== g.game) { seenTable.clear(); seenHand.clear(); sel.clear(); }
+  if (!prev || prev.game !== g.game) { seenTable.clear(); seenHand.clear(); sel.clear(); for (const el of handEls.values()) el.remove(); handEls.clear(); }
+  // кто какую карту положил — чтобы она прилетела от него
+  T._from = new Map();
+  for (const ev of g.events || []) {
+    const cs = ev.card ? [ev.card] : ev.cards || [];
+    for (const c of cs) T._from.set(c.id, ev.playerId);
+  }
   $('#t-title').textContent = TITLES[g.game] || '';
   $('#screen-table').dataset.game = g.game;
   playSounds(g.events || []);
@@ -133,7 +160,30 @@ export function rerender() { if (T) render(); }
 
 function render() {
   if (!T) return;
+  const before = new Map();
+  for (const el of document.querySelectorAll('#t-hand .card[data-id]')) before.set(el.dataset.id, el.getBoundingClientRect());
+  const opp = new Map();
+  for (const el of document.querySelectorAll('#t-opps .opp')) opp.set(el.dataset.id, el.querySelector('.ava-wrap').getBoundingClientRect());
   ({ durak: renderDurak, bura: renderBura, poker: renderPoker, blackjack: renderBlackjack })[T.game]?.(T);
+  try { C.track?.(T); } catch (e) { console.warn(e); }
+  if (C.lite()) return;
+  // новые карты на столе прилетают из руки или от соперника (FLIP, только transform)
+  let k = 0;
+  for (const el of document.querySelectorAll('#t-center .card[data-fresh]')) {
+    delete el.dataset.fresh;
+    const to = el.getBoundingClientRect();
+    const who = T._from?.get(el.dataset.id);
+    const from = before.get(el.dataset.id) || (who && opp.get(who)) || null;
+    const delay = k++ * 60;
+    if (from) {
+      const dx = from.left + from.width / 2 - (to.left + to.width / 2), dy = from.top + from.height / 2 - (to.top + to.height / 2);
+      const sc = Math.max(0.35, Math.min(1.6, from.width / to.width));
+      el.animate([{ translate: `${dx}px ${dy}px`, scale: String(sc), rotate: '-14deg' }, { translate: '0 0', scale: '1', rotate: '0deg' }],
+        { duration: 460, delay, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'backwards' });
+    } else {
+      el.animate([{ opacity: 0, translate: '0 -30px', scale: '1.15' }, { opacity: 1, translate: '0 0', scale: '1' }], { duration: 380, delay, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'backwards' });
+    }
+  }
 }
 
 function playSounds(events) {
@@ -203,15 +253,24 @@ function renderDurak(g) {
   if (!g.table.length) tbl.innerHTML = `<div class="t-hint">${g.phase === 'gameOver' ? '' : iAtt ? 'Ваш ход — положите карту' : `Ходит ${C.esc(nameOf(g.players, g.attacker))}`}</div>`;
   c.appendChild(tbl);
   const meP = g.players.find(p => p.id === me);
-  status(g.phase !== 'playing' ? '' : iDef ? (g.taking ? 'Вы берёте — ждём подкидных' : '🛡 Отбивайтесь') : iAtt ? '⚔️ Вы атакуете' : g.table.length ? 'Можно подкидывать' : '');
+  status(g.phase !== 'playing' ? '' : !g.table.length ? (iAtt ? '⚔️ Ваш ход' : '') : iDef ? (g.taking ? 'Вы берёте — ждём подкидных' : '🛡 Отбивайтесь') : 'Можно подкидывать');
   meRow(`<span class="sc">${meP?.out ? `🏁 ${meP.place || ''}` : iAtt ? '⚔️' : iDef ? '🛡' : ''}</span>`);
   const btns = [];
   if (iDef && g.table.length && !g.taking && g.table.some(t => !t.d)) btns.push({ label: 'Беру', cls: 'btn-primary', onClick: () => act({ type: 'take' }) });
   if (g.canPass) btns.push({ label: g.taking ? 'Хватит' : 'Бито', cls: 'btn-primary', onClick: () => act({ type: 'pass' }) });
-  if (!btns.length) btns.push({ label: iDef ? '🛡 Отбиваюсь' : g.waiting.includes(me) ? 'Ваш ход' : 'Ждём…', disabled: true });
+  if (!btns.length) btns.push({ label: g.waiting.includes(me) ? (g.table.length ? 'Бейте или подкидывайте' : 'Ваш ход — выберите карту') : `Ходит ${C.esc(nameOf(g.players, g.waiting[0]))}`, disabled: true });
   actions(btns);
+  const RV = r => ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'].indexOf(r);
+  const beats = (a, d) => d.suit === a.suit ? RV(d.rank) > RV(a.rank) : d.suit === g.trump && a.suit !== g.trump;
+  const ranks = new Set(g.table.flatMap(t => [t.a.rank, t.d?.rank]).filter(Boolean));
+  const defending = iDef && !g.taking && g.table.some(t => !t.d);
+  const canPlay = c2 => g.phase !== 'playing' || !g.waiting.includes(me) ? true
+    : defending ? g.table.some(t => !t.d && beats(t.a, c2))
+    : iDef ? false : !g.table.length ? iAtt : ranks.has(c2.rank);
   hand(sortHand(g.hand, g.trump), {
+    playable: c2 => !C.hints() || canPlay(c2),
     onTap: c2 => {
+      if (!canPlay(c2)) { C.sfx?.error?.(); return; }
       if (iDef && !g.taking && g.table.some(t => !t.d)) act({ type: 'defend', cardId: c2.id });
       else act({ type: 'attack', cardId: c2.id });
     },

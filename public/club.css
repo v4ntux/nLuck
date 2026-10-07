@@ -1,0 +1,166 @@
+/* ================= nLuck: реалистичный клуб =================
+   Меню — бумага и картон, столы — зелёное сукно с деревянным бортом.
+   Анимации только transform/opacity — легко для телефона. */
+:root {
+  --felt: #1f5c3d;
+  --felt-dark: #123b27;
+  --felt-text: #f4ecd8;
+  --felt-soft: rgba(244, 236, 216, .7);
+  --wood: #6b4226;
+  --wood-dark: #3f2615;
+  --gold: #d9b45a;
+}
+
+/* ---------- сукно ---------- */
+.felt {
+  background-color: var(--felt);
+  background-image:
+    var(--grain),
+    radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, .10), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, var(--felt) 30%, var(--felt-dark) 100%);
+}
+.game-screen { padding: 0; background: var(--wood-dark); }
+.game-screen .table.felt {
+  color: var(--felt-text);
+  /* деревянный борт по краю экрана */
+  box-shadow: inset 0 0 0 6px var(--wood), inset 0 0 0 8px var(--wood-dark), inset 0 0 40px rgba(0, 0, 0, .45);
+  border-radius: 0;
+}
+.game-screen .round-label, .game-screen .opp .nm, .game-screen .me-info .nm, .game-screen .me-info span, .game-screen .t-hint,
+.game-screen .deck-count, .game-screen .t-count, .game-screen .pot, .game-screen .dealer .who, .game-screen .trick-row .who { color: var(--felt-text); }
+.game-screen .pot b { color: #fff; }
+.game-screen .opp .sc, .game-screen .me-info .sc { color: var(--gold); }
+.game-screen .hint-line, .game-screen .t-status { color: var(--gold); text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.game-screen .hint-line.mine { color: #fff3c4; }
+.game-screen .opp .avatar, .game-screen .me-info .avatar { border-color: rgba(0, 0, 0, .4); }
+.game-screen .opp.turn .avatar, .game-screen .me-info.turn .avatar { box-shadow: 0 0 0 3px var(--felt-dark), 0 0 0 5px var(--gold), 0 0 16px rgba(217, 180, 90, .55); }
+.game-screen .opp .cnt { border-color: var(--felt-dark); }
+.game-screen .table-center::before, .game-screen .t-center::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 320px; height: 220px; transform: translate(-50%, -50%);
+  border-radius: 50%; border: 2px solid rgba(244, 236, 216, .12); pointer-events: none;
+}
+.game-screen .slot { border-color: rgba(244, 236, 216, .3); }
+.game-screen .trick-row.beat { background: rgba(255, 255, 255, .1); }
+.game-screen .act-tag { background: rgba(0, 0, 0, .45); }
+.game-screen .act-tag.won { background: #2f8a4a; }
+.game-screen .hand .card, .game-screen .t-hand .card, .game-screen .pile .card, .game-screen .deck .card {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 4px 10px rgba(0, 0, 0, .35);
+}
+.game-screen .suit-badge { border: 0; box-shadow: 0 0 0 3px var(--gold), 0 6px 14px rgba(0, 0, 0, .4); }
+
+/* ---------- главная ---------- */
+#screen-home { padding-bottom: calc(86px + var(--safe-b)); }
+.brand { margin: 8px 0 12px; }
+.brand .conn { width: 8px; height: 8px; position: absolute; right: 2px; top: 6px; }
+.games-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.game-tile {
+  position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 12px; text-align: left; font: inherit; color: var(--ink);
+  border: 0; border-radius: 6px; cursor: pointer; overflow: hidden;
+  background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #f1e7d1); box-shadow: var(--lift);
+  animation: tileIn .5s var(--snap) backwards; transition: transform .35s var(--spring);
+}
+.game-tile:active { transform: scale(.97); transition-duration: .06s; }
+.game-tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--gc); }
+.game-tile.wide { grid-column: 1 / -1; flex-direction: row; align-items: center; padding: 12px 14px 12px 16px; }
+@keyframes tileIn { from { opacity: 0; transform: translateY(14px); } }
+.game-tile .mini-fan { position: relative; height: 74px; flex: none; }
+.game-tile.wide .mini-fan { width: 120px; height: 90px; }
+.mini-fan .card { position: absolute; left: 50%; bottom: 0; transform-origin: 50% 120%; box-shadow: 0 1px 2px rgba(70, 50, 20, .3); }
+.gt-txt { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.gt-txt b { font-family: 'Playfair Display', serif; font-size: 21px; color: var(--gc); line-height: 1.1; }
+.game-tile.wide .gt-txt b { font-size: 28px; }
+.gt-txt small { font-size: 12px; color: var(--ink-soft); line-height: 1.25; }
+.gt-txt em { font-style: normal; font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+.gt-txt em span:not(:empty) { color: #2f6b2a; font-weight: 700; margin-right: 6px; }
+.gt-txt em span:not(:empty)::before { content: '● '; }
+.chev { position: absolute; right: 10px; top: 8px; font-style: normal; font-size: 20px; color: var(--ink-soft); }
+.game-tile.wide .chev { position: static; font-size: 28px; }
+.home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.home-actions .btn { font-size: 15px; padding: 12px 6px; position: relative; }
+.badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--red); color: #fff; font-style: normal; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.dock {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 560px; z-index: 20;
+  display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px 12px calc(6px + var(--safe-b));
+  background-image: var(--grain), linear-gradient(180deg, #f6eedc, #eadcbd); box-shadow: 0 -2px 10px rgba(70, 50, 20, .15);
+}
+.dock button { display: flex; flex-direction: column; align-items: center; gap: 1px; background: none; border: 0; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); padding: 6px 0; cursor: pointer; border-radius: 8px; }
+.dock button:active { background: rgba(70, 50, 20, .08); }
+.dock i { font-style: normal; font-size: 22px; }
+#screen-home:not(.active) ~ .dock { display: none; }
+
+/* ---------- хаб игры ---------- */
+.bar { position: relative; }
+.bar .hub-rules { margin-left: auto; }
+.hub-hero { border-radius: 8px; padding: 14px 14px 12px; text-align: center; color: var(--felt-text); box-shadow: inset 0 0 0 4px var(--wood), inset 0 0 0 6px var(--wood-dark), var(--lift); }
+.hub-hero .mini-fan { margin: 0 auto; width: 160px; height: 124px; }
+.hub-hero p { margin: 8px 0 0; font-size: 15px; }
+.hub-sect { margin-top: 16px; }
+.hub-sect h3 { margin: 0 0 8px; font-family: 'Playfair Display', serif; font-size: 20px; }
+.hub-sect h3 small { font-family: 'PT Serif', serif; font-size: 13px; color: var(--ink-soft); font-weight: 400; }
+.hub-sect .modes { margin-top: 0; gap: 10px; }
+.hub-sect .mode-card { padding: 12px 14px; }
+.hub-sect .mode-card b { font-size: 19px; }
+.hub-pair { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.hub-pair .btn { font-size: 15px; padding: 12px 6px; }
+.bots-pick { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bots-pick span { color: var(--ink-soft); font-size: 14px; margin-right: 4px; }
+.bots-pick .pick { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(70, 50, 20, .35); background-image: var(--grain), linear-gradient(#fdf9f0, #ece1c8); font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; transition: transform .3s var(--spring); }
+.bots-pick .pick.on { background: var(--red); color: #fff; border-color: var(--red-dark); transform: scale(1.1); }
+#solo-go { margin-top: 18px; }
+
+/* ---------- комната ---------- */
+.room-head { border-radius: 8px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--felt-text); box-shadow: inset 0 0 0 4px var(--wood), inset 0 0 0 6px var(--wood-dark), var(--lift); }
+.room-head .label { color: var(--felt-soft); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+.room-head .room-code { color: var(--gold); font-size: 42px; }
+.room-head .hub-pair { width: 100%; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 12px 0 6px; }
+.seat { flex-direction: column; text-align: center; gap: 4px; padding: 10px 6px; border: 0; border-radius: 6px; background-image: var(--grain), linear-gradient(#fdf9f0, #f3ead6); box-shadow: var(--lift-sm); position: relative; animation: tileIn .4s var(--snap) backwards; }
+.seat .avatar { width: 42px; height: 42px; font-size: 18px; }
+.seat .name { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .tag, .seat .off { font-size: 11px; }
+.seat .rm { position: absolute; top: 2px; right: 4px; }
+.seat.empty { justify-content: center; min-height: 92px; border: 1.5px dashed rgba(70, 50, 20, .3); background: none; box-shadow: none; font-size: 12px; }
+.room-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; margin-top: 10px; }
+.room-actions .btn { padding: 13px 6px; }
+
+/* ---------- чат ---------- */
+.chat-box { display: flex; flex-direction: column; flex: 1; min-height: 0; border-radius: 6px; background-image: var(--grain), linear-gradient(#fdfaf2, #f4ecd9); box-shadow: var(--lift-sm); overflow: hidden; }
+#screen-chat .chat-box { margin-top: 4px; }
+.room-chat { min-height: 150px; max-height: 32vh; }
+.chat-list { list-style: none; margin: 0; padding: 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+.chat-list li { display: flex; align-items: flex-end; gap: 6px; max-width: 86%; animation: msgIn .25s var(--snap) backwards; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } }
+.chat-list li .avatar { width: 26px; height: 26px; font-size: 11px; flex: none; }
+.chat-list .msg { display: flex; flex-direction: column; padding: 6px 10px 4px; border-radius: 12px 12px 12px 3px; background: #fff; box-shadow: 0 1px 2px rgba(70, 50, 20, .15); font-size: 14.5px; line-height: 1.3; }
+.chat-list .msg b { font-size: 12px; color: var(--red); }
+.chat-list .msg span { word-break: break-word; }
+.chat-list .msg time { align-self: flex-end; font-size: 10px; color: var(--ink-soft); }
+.chat-list li.mine { align-self: flex-end; }
+.chat-list li.mine .msg { background: #f2e2b8; border-radius: 12px 12px 3px 12px; }
+.chat-list li.sys { align-self: center; max-width: 100%; font-size: 12px; color: var(--ink-soft); font-style: italic; }
+.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.chat-form input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 20px; border: 1px solid rgba(70, 50, 20, .3); background: #fff; color: var(--ink); }
+.chat-form input:focus { outline: none; border-color: var(--red); }
+.chat-form .btn { width: 46px; padding: 0; border-radius: 50%; font-size: 18px; }
+.chat-sheet { max-height: 82vh; }
+.chat-sheet .chat-list { max-height: 34vh; min-height: 120px; background: rgba(255, 255, 255, .5); border-radius: 6px; }
+.chat-sheet .chat-form { border: 0; padding: 4px 0 0; }
+.quick-emo { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.quick-emo .emo { font-size: 24px; background: none; border: 0; padding: 4px 0; cursor: pointer; transition: transform .25s var(--spring); }
+.quick-emo .emo:active { transform: scale(1.4); }
+.quick-emo .phrase { grid-column: span 2; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 2px; border-radius: 6px; border: 1px solid rgba(70, 50, 20, .3); background: #fffaf0; cursor: pointer; }
+[data-chat] { position: relative; }
+
+/* ---------- кнопки на сукне ---------- */
+.game-screen .icon-btn { border: 0; background-image: var(--grain), linear-gradient(180deg, #fdf9f0, #e9dcbc); }
+.act-row { grid-template-columns: 52px 1fr 1fr; }
+
+/* ---------- лёгкий режим ---------- */
+body.lite .felt { background-image: none; }
+body.lite .game-tile, body.lite .seat { animation: none; }
+.mini-fan { position: relative; }
+.hub-hero .hub-fan { display: flex; justify-content: center; }
+
+/* достижения по играм */
+.ach-group { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 2px 2px; font-family: var(--serif, Georgia, serif); font-weight: 700; font-size: 17px; color: var(--ink, #2b2116); border-bottom: 1.5px solid rgba(70,50,20,.25); padding-bottom: 4px; }
+.ach-group small { font-weight: 600; font-size: 13px; opacity: .6; }

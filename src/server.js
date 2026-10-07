@@ -19,7 +19,8 @@ const app = express();
 const PUBLIC = path.join(__dirname, '..', 'public');
 const VERSION = (process.env.RAILWAY_GIT_COMMIT_SHA || Date.now().toString(36)).slice(0, 10);
 const indexHtml = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replaceAll('__V__', VERSION);
-app.get(['/', '/index.html'], (_req, res) => res.set('Cache-Control', 'no-store').type('html').send(indexHtml));
+app.get(['/', '/index.html'], (_req, res) => res.set('Cache-Control', 'no-store').type('html')
+  .send(indexHtml.replace('__CLUB__', JSON.stringify({ bot: botInfo?.username || null, app: process.env.APP_SHORT_NAME || null }))));
 app.use('/v/:ver', express.static(PUBLIC, { maxAge: '30d', immutable: true, index: false }));
 app.use(express.static(PUBLIC, { index: false, setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -46,8 +47,9 @@ wss.on('connection', ws => {
       const profile = resolveProfile(msg);
       if (!profile) { ws.send(JSON.stringify({ type: 'error', fatal: true, message: 'Откройте игру через Telegram-бота' })); return ws.close(); }
       user = lobby.connect(ws, profile);
-      const startParam = profile.startParam || msg.startParam;
-      if (startParam && /^[A-Z0-9]{5}$/i.test(startParam) && !user.roomCode) lobby.handle(user, { type: 'room_join', code: startParam });
+      // приглашение: ?room=CODE, startapp=CODE, r_CODE, room_CODE
+      const m = /^(?:r_?|room_?)?([A-Z0-9]{5})$/i.exec(String(profile.startParam || msg.startParam || ''));
+      if (m) lobby.handle(user, { type: 'room_join', code: m[1].toUpperCase() });
       return;
     }
     lobby.handle(user, msg);
